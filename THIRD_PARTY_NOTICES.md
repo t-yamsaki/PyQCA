@@ -67,6 +67,27 @@ to, import, or distribute that package. The minimization implementation was
 reviewed against QCA 3.25; the audit found no direct source translation. See
 `PROVENANCE_AUDIT.md`.
 
+## mlQCA
+
+PyQCA's optional `qca.mlqca` workflow is methodologically informed by the
+mlQCA project and its accompanying research article. The current Python
+implementation independently uses public XGBoost APIs to train a classifier,
+rank conditions using prediction contributions and tree importance, and
+extract frequently used split thresholds as calibration candidates. PyQCA
+then uses its own calibration, csQCA, minimization, model-ranking, and Pareto
+evaluation implementations. Fuzzy-set anchor proposals and sensitivity
+analysis are implemented using PyQCA's own fsQCA calibration and
+`AnchorSensitivity` components.
+
+- Project: https://qinhuang-poliecon.github.io/mlQCA/
+- Repository: https://github.com/qinhuang-poliecon/mlQCA
+- License: MIT
+- Article: Huang, Q. (2025). *Towards machine-learning enhanced QCA:
+  optimizing coverage and empirical significance*. Quality & Quantity, 59,
+  4259-4281. https://doi.org/10.1007/s11135-025-02146-2
+
+No R source code from mlQCA is copied, bundled, or executed by PyQCA.
+
 ## Research References
 
 The following works describe methods implemented or discussed by PyQCA. Their
@@ -93,3 +114,8 @@ PyQCA depends on NumPy and pandas and optionally uses Matplotlib. These
 libraries are installed separately and retain their own licenses. Their source
 code is not copied into this repository or distributed inside the PyQCA source
 tree.
+
+The optional `mlqca` dependency group uses XGBoost (Apache-2.0) and
+scikit-learn (BSD-3-Clause). The optional `mlqca-explain` group additionally
+uses SHAP (MIT). These packages are installed separately and are not bundled
+in PyQCA wheels.

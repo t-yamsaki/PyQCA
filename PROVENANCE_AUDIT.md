@@ -6,6 +6,7 @@ Scope:
 
 - `src/qca/sweep/threshold.py`
 - `src/qca/minimizers/`
+- `src/qca/mlqca/`
 - the former private MixedQCA project used as the starting point for PyQCA
 
 This is a source-provenance review for release preparation. It is not a legal
@@ -19,6 +20,8 @@ notice in `THIRD_PARTY_NOTICES.md`.
 - ThresholdSweep is treated as an MIT-licensed Python adaptation of ThSQCA.
 - No direct source translation from the GPL-licensed R package QCA was found in
   the PyQCA minimizer implementation.
+- The mlQCA implementation uses the published protocol and public package API
+  as methodological references without translating R source code.
 - The former private MixedQCA project was authored by the PyQCA copyright
   holder and introduces no third-party licensing requirement.
 
@@ -122,6 +125,26 @@ PyQCA using Python-native data structures.
 The former MixedQCA project was private and authored by the same copyright
 holder as PyQCA. It is first-party code and therefore does not require a
 third-party notice.
+
+## mlQCA Findings
+
+PyQCA's `qca.mlqca` package is a Python-native implementation. The P0-P4
+modules define PyQCA-specific configuration, validation, result contracts, an
+optional XGBoost backend, feature-importance summaries, split-threshold
+aggregation, crisp calibration, csQCA evaluation, condition-combination
+search, Pareto analysis, fuzzy-anchor proposals, fsQCA calibration, and anchor
+sensitivity adapters.
+
+The implementation was written against:
+
+- the protocol described by Huang (2025);
+- the public mlQCA website and function-level documentation;
+- public XGBoost APIs including `pred_contribs`, `get_score()`, and
+  `trees_to_dataframe()`.
+
+No R source from the mlQCA package was copied or translated. PyQCA's data
+models, error handling, ranking tables, optional dependency behavior, and test
+suite are independently implemented.
 
 ## Release Requirements
 

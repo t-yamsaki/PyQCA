@@ -43,6 +43,15 @@ Issues = "https://github.com/t-yamsaki/PyQCA/issues"
 viz = [
     "matplotlib>=3.8",
 ]
+mlqca = [
+    "scikit-learn>=1.4",
+    "xgboost>=2.0",
+]
+mlqca-explain = [
+    "scikit-learn>=1.4",
+    "shap>=0.46",
+    "xgboost>=2.0",
+]
 test = [
     "pytest>=8.0",
     "pytest-cov>=4.1",
