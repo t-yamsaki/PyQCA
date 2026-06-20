@@ -14,6 +14,24 @@ calibration sensitivity analysis, reporting, and reproducibility tools.
 
 ---
 
+## Documentation
+
+The Sphinx documentation covers installation, core and mixed QCA, calibration,
+minimization, sensitivity analysis, reporting, mlQCA, and the generated API
+reference. It is configured for publication on Read the Docs.
+
+Build it locally with:
+
+```bash
+python -m pip install -e ".[docs]"
+python -m sphinx -W --keep-going -b html docs docs/_build/html
+```
+
+Until the Read the Docs project is connected, open
+`docs/_build/html/index.html` after a local build.
+
+---
+
 ## Why PyQCA?
 
 QCA is widely used in social science, management research, political science, evaluation research, and configurational causal analysis. Mature QCA tooling exists in R, especially for crisp-set, multi-value, and fuzzy-set QCA workflows.

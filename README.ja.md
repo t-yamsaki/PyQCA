@@ -11,6 +11,24 @@ csQCA、mvQCA、fsQCA、混合型QCAに加え、XGBoostによる条件選択と
 
 ---
 
+## ドキュメント
+
+Sphinxドキュメントには、インストール、Core/Mixed QCA、calibration、
+minimization、感度分析、レポート、mlQCA、API referenceを収録しています。
+Read the Docsで公開できる構成です。
+
+ローカルでビルドする場合:
+
+```bash
+python -m pip install -e ".[docs]"
+python -m sphinx -W --keep-going -b html docs docs/_build/html
+```
+
+Read the Docs projectを接続するまでは、ビルド後に
+`docs/_build/html/index.html` を開いて確認できます。
+
+---
+
 ## 特徴
 
 * **Core QCA**: `CSQCA`, `MVQCA`, `FSQCA`
