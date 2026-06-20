@@ -30,6 +30,21 @@ build command is required.
 Pull request previews should be enabled in the Read the Docs project settings
 so documentation changes can be reviewed before merging.
 
+GitHub Actions
+--------------
+
+Pull requests targeting ``main`` run:
+
+* the complete test suite on Python 3.11 and 3.12;
+* Ruff, isort, and flake8;
+* source and wheel builds followed by Twine metadata validation;
+* Sphinx with warnings treated as errors.
+
+Configure the ``main`` branch ruleset to require ``Tests (Python 3.11)``,
+``Tests (Python 3.12)``, ``Lint and package``, and ``Sphinx`` before merging.
+The workflows only report quality status; they do not merge pull requests,
+create tags, or publish releases.
+
 Documentation conventions
 -------------------------
 

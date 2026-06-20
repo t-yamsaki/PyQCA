@@ -13,11 +13,13 @@ python -m pip install -e ".[dev]"
 Run the quality checks before submitting a pull request:
 
 ```bash
-python -m ruff check .
-python -m ruff format . --check
-python -m isort . --check-only
-python -m flake8 .
-python -m pytest tests
+python -m ruff check src tests docs/conf.py
+python -m isort --check-only src tests docs/conf.py
+python -m flake8 src tests docs/conf.py
+python -m pytest
+python -m sphinx -W --keep-going -b html docs docs/_build/html
+python -m build
+python -m twine check dist/*
 ```
 
 ## Contribution Scope
@@ -69,3 +71,14 @@ Include:
 
 All contributions are reviewed for correctness, API consistency,
 reproducibility, and license compatibility.
+
+Pull requests targeting `main` run these required GitHub Actions checks:
+
+- `Tests (Python 3.11)`
+- `Tests (Python 3.12)`
+- `Lint and package`
+- `Sphinx`
+
+Maintainers should configure the `main` branch ruleset to require these checks
+before merging. GitHub Actions validates pull requests but does not merge them
+or create release tags.

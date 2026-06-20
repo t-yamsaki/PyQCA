@@ -63,7 +63,11 @@ test = [
 ]
 dev = [
     "pyqca[docs,test,viz]",
+    "build>=1.2",
+    "flake8>=7.0",
+    "isort>=5.13",
     "ruff>=0.4",
+    "twine>=5.0",
     "mypy>=1.9",
     "pandas-stubs>=2.1",
 ]
