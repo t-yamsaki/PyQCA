@@ -103,5 +103,7 @@ Published reproduction fixture
 
 The test suite includes a mechanically converted copy of the public
 ``voteData`` fixture from the mlQCA repository. The fixed-seed test reproduces
-the tutorial's highlighted conditions and model-combination count. See
-``tests/data/README.md`` and ``THIRD_PARTY_NOTICES.md`` for provenance.
+at least five of the tutorial's six highlighted conditions within the top ten,
+plus the published model-combination count. Exact top-ten ordering can vary
+across XGBoost and Python runtime versions. See ``tests/data/README.md`` and
+``THIRD_PARTY_NOTICES.md`` for provenance.

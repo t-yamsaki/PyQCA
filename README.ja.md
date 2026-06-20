@@ -485,12 +485,13 @@ fixtureを収録しています。seed `201` と公開探索範囲内の代表�
 
 * 公開データ427 casesでの学習
 * training accuracyとROC AUCがともに `1.0`
-* tutorialで示された上位6条件がPyQCAでも上位10条件以内
+* tutorialで示された6条件のうち5条件以上がPyQCAでも上位10条件以内
 * 上位10条件から4条件を選択する210組合せ
 
 これはプロトコル水準の再現テストです。R/caretとPython版XGBoostが
-byte単位で同じtreeを生成することを保証するものではありません。
-fixtureの出典は `tests/data/README.md` と
+byte単位で同じtreeや順位を生成することを保証するものではありません。
+上位10条件の境界付近はXGBoostやPython runtimeのversionによって変動する
+可能性があります。fixtureの出典は `tests/data/README.md` と
 `THIRD_PARTY_NOTICES.md` に記録しています。
 
 ---
