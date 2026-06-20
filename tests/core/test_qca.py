@@ -49,7 +49,7 @@ def prepared_core_df(core_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def test_v01_data_validation(core_df):
-    with pytest.raises(ValueError, match="必須カラム|DataFrame"):
+    with pytest.raises(ValueError, match="Required columns|DataFrame"):
         MixedQCA(
             data=core_df,
             case_id="case",

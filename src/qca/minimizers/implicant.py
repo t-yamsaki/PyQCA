@@ -23,7 +23,7 @@ class Implicant:
     is_prime: bool = True
 
     # ------------------------------------------------------------------
-    # 分析プロパティ
+    # Analytical properties
     # ------------------------------------------------------------------
 
     def complexity(self) -> int:
@@ -40,23 +40,23 @@ class Implicant:
             return False
 
         for sv, ov in zip(self.pattern, other.pattern, strict=False):
-            # self がワイルドカードでなく、other と値が異なる → 包含しない
+            # A concrete value in self that differs from other is not subsumed.
             if sv != DONT_CARE and sv != ov:
                 return False
 
-        # カバレッジの包含も確認
+        # Coverage must also be contained.
         return other.covered.issubset(self.covered)
 
     # ------------------------------------------------------------------
-    # ラベル生成
+    # Label generation
     # ------------------------------------------------------------------
 
     def label(self, condition_names: list[str]) -> str:
         """Return a human-readable label."""
         if len(condition_names) != len(self.pattern):
             raise ValueError(
-                f"condition_names の長さ ({len(condition_names)}) が "
-                f"pattern の長さ ({len(self.pattern)}) と一致しません。"
+                f"condition_names length ({len(condition_names)}) does not match "
+                f"pattern length ({len(self.pattern)})."
             )
 
         parts: list[str] = []
@@ -103,7 +103,7 @@ class QMSolution:
     n_contradiction: int = 0
 
     # ------------------------------------------------------------------
-    # 集計・出力
+    # Aggregation and output
     # ------------------------------------------------------------------
 
     def summary(self) -> pd.DataFrame:

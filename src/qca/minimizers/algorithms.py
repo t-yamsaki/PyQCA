@@ -12,7 +12,7 @@ from qca._constants import DONT_CARE
 from qca.minimizers.implicant import Implicant
 
 # ---------------------------------------------------------------------------
-# マージ可否判定
+# Merge eligibility
 # ---------------------------------------------------------------------------
 
 
@@ -28,13 +28,13 @@ def can_merge(
     diff_positions: list[int] = []
 
     for i, (v1, v2) in enumerate(zip(p1, p2, strict=False)):
-        # ワイルドカード状態の不一致 → マージ不可
+        # Different wildcard states cannot be merged.
         if (v1 == DONT_CARE) != (v2 == DONT_CARE):
             return False, None
         if v1 != v2:
             diff_positions.append(i)
 
-    # 差異が厳密に 1 箇所のみ、かつ二値条件の位置
+    # Exactly one difference, located at a binary condition.
     if len(diff_positions) == 1:
         pos = diff_positions[0]
         if not is_multivalue[pos]:
@@ -46,7 +46,7 @@ def can_merge(
 
 
 # ---------------------------------------------------------------------------
-# Quine-McCluskey 法の中核
+# Quine-McCluskey core
 # ---------------------------------------------------------------------------
 
 
@@ -63,9 +63,9 @@ def quine_mccluskey(
     dont_care_set: frozenset[int] = frozenset(dont_care_indices or [])
     target_set: frozenset[int] = frozenset(minterms)
 
-    # 初期インプリカントの生成
-    # キー: カバーするミンタームインデックスの frozenset
-    # 値: パターンタプル
+    # Generate initial implicants.
+    # Key: frozenset of covered minterm indices.
+    # Value: pattern tuple.
     initial_indices = sorted(target_set | dont_care_set)
     current: dict[frozenset[int], tuple[Any, ...]] = {
         frozenset([i]): all_patterns[i] for i in initial_indices
@@ -88,15 +88,15 @@ def quine_mccluskey(
                 ok, merged_pat = can_merge(pat1, pat2, is_multivalue)
                 if ok and merged_pat is not None:
                     new_cov = cov1 | cov2
-                    # 同じカバレッジのエントリが既に存在する場合は上書き
+                    # Replace an existing entry with the same coverage.
                     next_level[new_cov] = merged_pat
                     merged_keys.add(cov1)
                     merged_keys.add(cov2)
 
-        # マージされなかったインプリカントがプライム含意節候補
+        # Unmerged implicants are prime-implicant candidates.
         for cov, pat in items:
             if cov not in merged_keys:
-                # ポジティブ行を少なくとも 1 つカバーしているか確認
+                # Retain candidates that cover at least one positive row.
                 positive_covered = cov & target_set
                 if positive_covered:
                     all_prime_candidates.append(
@@ -113,7 +113,7 @@ def quine_mccluskey(
 
 
 # ---------------------------------------------------------------------------
-# 重複除去
+# Deduplication
 # ---------------------------------------------------------------------------
 
 
@@ -131,7 +131,7 @@ def deduplicate_implicants(
 
 
 # ---------------------------------------------------------------------------
-# 必須プライム含意節の選択
+# Essential prime-implicant selection
 # ---------------------------------------------------------------------------
 
 
@@ -145,10 +145,10 @@ def select_essential_prime_implicants(
 
     target_set = set(target_minterms)
     selected: list[Implicant] = []
-    selected_set: set[int] = set()  # 選択済みのインデックス（重複防止）
+    selected_set: set[int] = set()  # Selected indices, used to prevent duplicates.
     covered: set[int] = set()
 
-    # Step 1: 必須プライム含意節の同定
+    # Step 1: Identify essential prime implicants.
     for m in target_minterms:
         covering = [
             (i, imp) for i, imp in enumerate(prime_implicants) if m in imp.covered
@@ -160,23 +160,23 @@ def select_essential_prime_implicants(
                 selected_set.add(idx)
                 covered |= imp.covered
 
-    # Step 2: greedy 補完
+    # Step 2: Complete coverage greedily.
     remaining = target_set - covered
     while remaining:
-        # 未カバーミンタームを最も多くカバーし、かつ complexity が最小のものを選択
+        # Prefer maximum uncovered coverage, then minimum complexity.
         best_idx, best_imp = max(
             enumerate(prime_implicants),
             key=lambda t: (
                 len(t[1].covered & remaining),
-                -t[1].complexity(),  # complexity が小さいほど優先
+                -t[1].complexity(),  # Lower complexity is preferred.
             ),
         )
 
         if not (best_imp.covered & remaining):
-            # カバー不可能なミンタームが残存（矛盾行等の異常ケース）
+            # Uncoverable minterms remain, for example after contradictory rows.
             warnings.warn(
-                f"以下のミンタームをカバーできません: {sorted(remaining)}。"
-                "真理表に矛盾行が存在しないか確認してください。",
+                f"Unable to cover minterms: {sorted(remaining)}. "
+                "Check the truth table for contradictory rows.",
                 UserWarning,
                 stacklevel=3,
             )
@@ -188,7 +188,7 @@ def select_essential_prime_implicants(
         covered |= best_imp.covered
         remaining = target_set - covered
 
-    # 元のリストの順序に従いソート
+    # Preserve the ordering of the original list.
     order = {id(imp): i for i, imp in enumerate(prime_implicants)}
     selected.sort(key=lambda imp: order.get(id(imp), 0))
 
@@ -196,7 +196,7 @@ def select_essential_prime_implicants(
 
 
 # ---------------------------------------------------------------------------
-# カバレッジ表の構築
+# Coverage-table construction
 # ---------------------------------------------------------------------------
 
 

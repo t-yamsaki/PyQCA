@@ -17,7 +17,7 @@ from qca._types import (
 )
 
 # ---------------------------------------------------------------------------
-# 全論理空間の生成
+# Full logical-space generation
 # ---------------------------------------------------------------------------
 
 
@@ -34,7 +34,7 @@ def generate_all_minterms(
 
 
 # ---------------------------------------------------------------------------
-# 真理表行のパターン変換
+# Truth-table row conversion
 # ---------------------------------------------------------------------------
 
 
@@ -56,7 +56,7 @@ def row_to_pattern(
 
 
 # ---------------------------------------------------------------------------
-# 真理表行の分類
+# Truth-table row classification
 # ---------------------------------------------------------------------------
 
 
@@ -83,8 +83,9 @@ def classify_truth_table_rows(
         pat = row_to_pattern(row.config, condition_names, is_multivalue_flags)
         if pat is None:
             warnings.warn(
-                f"真理表行の config {row.config} を既知のパターンに変換できません。"
-                "スキップします。condition_names と is_multivalue_flags を確認してください。",
+                f"Could not convert truth-table configuration {row.config} to a "
+                "known pattern; skipping it. Check condition_names and "
+                "is_multivalue_flags.",
                 UserWarning,
                 stacklevel=3,
             )
@@ -93,8 +94,8 @@ def classify_truth_table_rows(
         idx = pattern_to_idx.get(pat)
         if idx is None:
             warnings.warn(
-                f"パターン {pat} が全論理空間に存在しません。"
-                "condition_domains の設定を確認してください。",
+                f"Pattern {pat} is not present in the full logical space. "
+                "Check condition_domains.",
                 UserWarning,
                 stacklevel=3,
             )
@@ -107,7 +108,7 @@ def classify_truth_table_rows(
             and row.outcome_raw_consist >= consistency_threshold
         )
 
-        # 矛盾チェック: 同一インデックスが既に反対の分類に存在するか
+        # Detect indices that have already received the opposite classification.
         if (
             is_positive
             and idx in negative_set
@@ -121,21 +122,21 @@ def classify_truth_table_rows(
         else:
             negative_set.add(idx)
 
-    # 矛盾行を正・負セットから除去
+    # Remove contradictory rows from the positive and negative sets.
     positive_indices = sorted(positive_set - contradiction_set)
     negative_indices = sorted(negative_set - contradiction_set)
     contradiction_indices = sorted(contradiction_set)
 
-    # 残余行: 全論理空間から観察行を除いたもの
+    # Logical remainders are unobserved rows in the full logical space.
     remainder_indices = [
         i for i, pat in enumerate(all_patterns) if pat not in observed_patterns
     ]
 
     if contradiction_indices:
         warnings.warn(
-            f"{len(contradiction_indices)} 件の矛盾行が検出され、"
-            "論理最小化から除外されました。"
-            "キャリブレーションの見直しを検討してください。"
+            f"Detected {len(contradiction_indices)} contradictory row(s); "
+            "they were excluded from logical minimization. "
+            "Consider reviewing the calibration."
             f"(Ragin 2008, p.128)",
             UserWarning,
             stacklevel=2,
@@ -150,7 +151,7 @@ def classify_truth_table_rows(
 
 
 # ---------------------------------------------------------------------------
-# 残余行の方向性フィルタ
+# Directional filtering of logical remainders
 # ---------------------------------------------------------------------------
 
 
@@ -172,7 +173,7 @@ def is_theory_consistent(
 
 
 # ---------------------------------------------------------------------------
-# 安全な残余行の抽出
+# Safe logical-remainder extraction
 # ---------------------------------------------------------------------------
 
 

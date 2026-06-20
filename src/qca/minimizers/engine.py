@@ -60,11 +60,11 @@ class QCAMinimizer:
         ]
         self.condition_domains = condition_domains
 
-        # 全論理空間を事前生成してキャッシュする
+        # Precompute and cache the full logical space.
         self._all_patterns: list[tuple[Any, ...]] = generate_all_minterms(
             condition_names, condition_domains
         )
-        # パターン → インデックスの逆引き辞書
+        # Reverse lookup from pattern to index.
         self._pattern_to_idx: dict[tuple[Any, ...], int] = {
             pat: i for i, pat in enumerate(self._all_patterns)
         }
@@ -83,7 +83,7 @@ class QCAMinimizer:
         )
 
     # ------------------------------------------------------------------
-    # メイン最小化
+    # Main minimization
     # ------------------------------------------------------------------
 
     def minimize(
@@ -96,7 +96,7 @@ class QCAMinimizer:
         include_remainders_in_parsimonious: bool = True,
     ) -> QMSolution:
         """Derive complex, parsimonious, and intermediate solutions."""
-        # Step 1: 真理表行の分類
+        # Step 1: Classify truth-table rows.
         (
             positive_indices,
             negative_indices,
@@ -123,19 +123,18 @@ class QCAMinimizer:
 
         if not positive_indices:
             warnings.warn(
-                "ポジティブ行が見つかりませんでした。"
-                f"outcome_threshold ({outcome_threshold}) または "
-                f"consistency_threshold ({consistency_threshold}) を "
-                "下げることを検討してください。",
+                "No positive rows were found. Consider lowering "
+                f"outcome_threshold ({outcome_threshold}) or "
+                f"consistency_threshold ({consistency_threshold}).",
                 UserWarning,
                 stacklevel=2,
             )
             return solution
 
-        # Step 2: 複雑解
+        # Step 2: Complex solution.
         solution = self._build_complex_solution(solution, positive_indices)
 
-        # Step 3: 倹約解
+        # Step 3: Parsimonious solution.
         solution = self._build_parsimonious_solution(
             solution,
             positive_indices,
@@ -145,7 +144,7 @@ class QCAMinimizer:
             include_remainders_in_parsimonious,
         )
 
-        # Step 4: 中間解
+        # Step 4: Intermediate solution.
         solution = self._build_intermediate_solution(
             solution,
             positive_indices,
@@ -155,7 +154,7 @@ class QCAMinimizer:
             directional_expectations,
         )
 
-        # カバレッジ表の構築（倹約解のプライム含意節を使用）
+        # Build the coverage table from parsimonious prime implicants.
         solution.coverage_table = build_coverage_table(
             solution.prime_implicants_parsimonious,
             positive_indices,
@@ -165,7 +164,7 @@ class QCAMinimizer:
         return solution
 
     # ------------------------------------------------------------------
-    # 三種の解の構築（プライベートメソッド）
+    # Private builders for the three solution types.
     # ------------------------------------------------------------------
 
     def _build_complex_solution(
@@ -197,7 +196,7 @@ class QCAMinimizer:
     ) -> QMSolution:
         """Build parsimonious solution."""
         if not include_remainders:
-            # 残余行を使用しない場合は複雑解と同一
+            # Without logical remainders, this is identical to the complex solution.
             solution.prime_implicants_parsimonious = solution.prime_implicants_complex
             solution.parsimonious_solution = solution.complex_solution
             return solution
@@ -229,9 +228,9 @@ class QCAMinimizer:
         """Build intermediate solution."""
         if directional_expectations is None:
             warnings.warn(
-                "directional_expectations が指定されていません。"
-                "中間解は複雑解と同一になります。"
-                "理論的期待方向を指定することで中間解を得られます。"
+                "directional_expectations was not provided, so the intermediate "
+                "solution is identical to the complex solution. Provide theoretical "
+                "directional expectations to obtain an intermediate solution. "
                 "(Ragin 2008, p.160-168)",
                 UserWarning,
                 stacklevel=3,
@@ -276,7 +275,7 @@ class QCAMinimizer:
         )
 
     # ------------------------------------------------------------------
-    # 診断用メソッド
+    # Diagnostic methods
     # ------------------------------------------------------------------
 
     def classify_rows(
@@ -357,7 +356,7 @@ class QCAMinimizer:
 
 
 # ---------------------------------------------------------------------------
-# ヘルパー関数: MixedQCA からの直接実行
+# Helper for direct execution from MixedQCA.
 # ---------------------------------------------------------------------------
 
 
@@ -371,7 +370,7 @@ def minimize_truth_table(
     backend: str = "qmc",
 ) -> QMSolution:
     """Run QCA minimization directly from a model instance."""
-    # 条件ドメインの自動構築
+    # Build condition domains automatically.
     condition_domains: ConditionDomains = {}
     is_multivalue: IsMultiValueMap = {}
 

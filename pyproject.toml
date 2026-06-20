@@ -11,7 +11,7 @@ license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.11"
 authors = [
-    { name = "taishi-yamasaki" },
+    { name = "Taishi Yamasaki" },
 ]
 keywords = [
     "QCA",

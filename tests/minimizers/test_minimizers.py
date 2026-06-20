@@ -137,7 +137,7 @@ class TestImplicant:
 
     def test_label_length_mismatch(self):
         imp = Implicant(pattern=(1, 0), covered=frozenset([0]))
-        with pytest.raises(ValueError, match="長さ"):
+        with pytest.raises(ValueError, match="length"):
             imp.label(["A", "B", "C"])
 
     def test_hashable(self):
@@ -479,7 +479,7 @@ class TestClassifyTruthTableRows:
         assert 3 in con
         assert 3 not in pos
         assert 3 not in neg
-        assert any("矛盾" in str(warning.message) for warning in w)
+        assert any("contradictory" in str(warning.message) for warning in w)
 
 
 # ===========================================================================
@@ -694,7 +694,7 @@ class TestQCAMinimizer:
             outcome_raw_consist: float
 
         rows = [MockRow({"A": 0, "B": 0, "C": 0}, 0.10, 0.12)]
-        with pytest.warns(UserWarning, match="ポジティブ行"):
+        with pytest.warns(UserWarning, match="positive rows"):
             solution = binary_minimizer.minimize(rows, outcome_threshold=0.75)
         assert solution.complex_solution == []
 
@@ -858,7 +858,7 @@ class TestMinimizeTruthTable:
 
     def test_high_threshold_no_positive_warns(self, model):
         """閾値が高すぎてポジティブ行なし → 警告 + 空解。"""
-        with pytest.warns(UserWarning, match="ポジティブ行"):
+        with pytest.warns(UserWarning, match="positive rows"):
             solution = minimize_truth_table(
                 model,
                 outcome_threshold=0.99,

@@ -30,7 +30,7 @@ class SufficiencyResult:
     n_cases_in: int
 
     # ------------------------------------------------------------------
-    # 評価プロパティ
+    # Evaluation properties
     # ------------------------------------------------------------------
 
     @property
@@ -50,7 +50,7 @@ class SufficiencyResult:
         return "weak"
 
     # ------------------------------------------------------------------
-    # シリアライズ
+    # Serialization
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
@@ -70,7 +70,7 @@ class SufficiencyResult:
         return pd.Series(self.to_dict())
 
     # ------------------------------------------------------------------
-    # 表示
+    # Display
     # ------------------------------------------------------------------
 
     def __str__(self) -> str:
@@ -103,7 +103,7 @@ class NecessityResult:
     n_cases_in: int
 
     # ------------------------------------------------------------------
-    # 評価プロパティ
+    # Evaluation properties
     # ------------------------------------------------------------------
 
     @property
@@ -128,7 +128,7 @@ class NecessityResult:
         return "insufficient"
 
     # ------------------------------------------------------------------
-    # シリアライズ
+    # Serialization
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
@@ -148,12 +148,12 @@ class NecessityResult:
         return pd.Series(self.to_dict())
 
     # ------------------------------------------------------------------
-    # 表示
+    # Display
     # ------------------------------------------------------------------
 
     def __str__(self) -> str:
         trivial_note = (
-            "  ⚠ トリビアルな必要条件の可能性あり\n" if self.is_trivial else ""
+            "  Potentially trivial necessary condition\n" if self.is_trivial else ""
         )
         return (
             f"NecessityResult(\n"
@@ -183,28 +183,28 @@ class TruthTableRow:
     include: bool | None = None
 
     # ------------------------------------------------------------------
-    # TruthTableRowProtocol との互換性確認
+    # Validate compatibility with TruthTableRowProtocol.
     # ------------------------------------------------------------------
 
     def __post_init__(self) -> None:
         """Validate the dataclass after initialization."""
         if not (0.0 <= self.outcome_mean <= 1.0):
             raise ValueError(
-                f"outcome_mean は [0, 1] の範囲内である必要があります。"
-                f"得られた値: {self.outcome_mean}"
+                "outcome_mean must be within [0, 1]. "
+                f"Received: {self.outcome_mean}"
             )
         if not (0.0 <= self.outcome_raw_consist <= 1.0):
             raise ValueError(
-                f"outcome_raw_consist は [0, 1] の範囲内である必要があります。"
-                f"得られた値: {self.outcome_raw_consist}"
+                "outcome_raw_consist must be within [0, 1]. "
+                f"Received: {self.outcome_raw_consist}"
             )
         if self.n_cases < 0:
             raise ValueError(
-                f"n_cases は 0 以上である必要があります。得られた値: {self.n_cases}"
+                f"n_cases must be non-negative. Received: {self.n_cases}"
             )
 
     # ------------------------------------------------------------------
-    # 評価プロパティ
+    # Evaluation properties
     # ------------------------------------------------------------------
 
     @property
@@ -228,7 +228,7 @@ class TruthTableRow:
         return self.n_cases if self.outcome_mean > MEMBERSHIP_THRESHOLD else 0
 
     # ------------------------------------------------------------------
-    # シリアライズ
+    # Serialization
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
@@ -246,7 +246,7 @@ class TruthTableRow:
         return pd.Series(self.to_dict())
 
     # ------------------------------------------------------------------
-    # 表示
+    # Display
     # ------------------------------------------------------------------
 
     def __str__(self) -> str:
@@ -268,7 +268,7 @@ class TruthTableRow:
 
 
 # ---------------------------------------------------------------------------
-# 結果集約ユーティリティ
+# Result aggregation utilities
 # ---------------------------------------------------------------------------
 
 
