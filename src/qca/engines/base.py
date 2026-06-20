@@ -1,0 +1,1128 @@
+"""Shared base implementation for QCA engines."""
+
+from __future__ import annotations
+
+import warnings
+from collections.abc import Sequence
+from itertools import combinations
+
+# 型エイリアス（実行時には使用しない）
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
+import pandas as pd
+
+from qca._constants import (
+    DONT_CARE,
+    MEMBERSHIP_THRESHOLD,
+    ZERO_EPSILON,
+)
+from qca.core.conditions import (
+    ConditionSpec,
+    condition_specs_from_schema,
+    split_condition_specs,
+)
+from qca.core.literals import (
+    MultiValueLiteral,
+    SetLiteral,
+)
+from qca.core.results import (
+    NecessityResult,
+    SufficiencyResult,
+    TruthTableRow,
+    necessity_results_to_df,
+    sufficiency_results_to_df,
+    truth_table_to_df,
+)
+
+if TYPE_CHECKING:
+    pass
+
+
+# ---------------------------------------------------------------------------
+# QCAEngineBase
+# ---------------------------------------------------------------------------
+
+
+class QCAEngineBase:
+    """Shared computational base for QCA engines."""
+
+    _AUTO_CASE_ID_BASE = "__qca_case_id__"
+
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        case_id: str | None = None,
+        set_conditions: Sequence[str] | None = None,
+        multivalue_conditions: Sequence[str] | None = None,
+        outcome: str | None = None,
+        conditions: Sequence[str] | None = None,
+        condition_types: dict[str, str] | None = None,
+        condition_specs: Sequence[ConditionSpec] | None = None,
+    ) -> None:
+        # インデックスを 0 始まりの整数に正規化する。
+        # 理由: groupby().groups から取得したインデックスと
+        #       conjunction_membership() の結果インデックスを
+        #       一致させるために必要。
+        self.data = data.copy().reset_index(drop=True)
+        self.case_id, self.generated_case_id = self._resolve_case_id(case_id)
+        (
+            self.condition_specs,
+            self.set_conditions,
+            self.multivalue_conditions,
+            self.conditions,
+            self.condition_types,
+        ) = self._normalize_condition_schema(
+            conditions=conditions,
+            condition_types=condition_types,
+            condition_specs=condition_specs,
+            set_conditions=set_conditions,
+            multivalue_conditions=multivalue_conditions,
+        )
+        if outcome is None:
+            raise ValueError("outcome は必須です。")
+        self.outcome = outcome
+        self._validate()
+
+    def _resolve_case_id(self, case_id: str | None) -> tuple[str, bool]:
+        """Resolve the case-id column, creating one when omitted."""
+        if case_id is not None:
+            return case_id, False
+
+        candidate = self._AUTO_CASE_ID_BASE
+        suffix = 1
+        while candidate in self.data.columns:
+            candidate = f"{self._AUTO_CASE_ID_BASE}_{suffix}"
+            suffix += 1
+
+        self.data[candidate] = [f"case_{i + 1}" for i in range(len(self.data))]
+        return candidate, True
+
+    @classmethod
+    def from_condition_specs(
+        cls,
+        data: pd.DataFrame,
+        outcome: str,
+        condition_specs: Sequence[ConditionSpec],
+        case_id: str | None = None,
+    ) -> QCAEngineBase:
+        """Build a model from normalized ``ConditionSpec`` objects."""
+        return cls(
+            data=data,
+            case_id=case_id,
+            outcome=outcome,
+            condition_specs=condition_specs,
+        )
+
+    def _normalize_condition_schema(
+        self,
+        *,
+        conditions: Sequence[str] | None,
+        condition_types: dict[str, str] | None,
+        condition_specs: Sequence[ConditionSpec] | None,
+        set_conditions: Sequence[str] | None,
+        multivalue_conditions: Sequence[str] | None,
+    ) -> tuple[list[ConditionSpec], list[str], list[str], list[str], dict[str, str]]:
+        """Normalize public and legacy condition schemas."""
+        uses_specs_schema = condition_specs is not None
+        uses_pyqca_schema = conditions is not None or condition_types is not None
+        uses_legacy_schema = (
+            set_conditions is not None or multivalue_conditions is not None
+        )
+
+        if uses_specs_schema:
+            if uses_pyqca_schema or uses_legacy_schema:
+                raise ValueError(
+                    "condition_specs cannot be combined with conditions / "
+                    "condition_types or legacy set_conditions / "
+                    "multivalue_conditions."
+                )
+            specs = condition_specs_from_schema(condition_specs)
+            return self._condition_schema_from_specs(specs)
+
+        if uses_pyqca_schema:
+            if conditions is None or condition_types is None:
+                raise ValueError(
+                    "conditions と condition_types は一緒に指定してください。"
+                )
+            if uses_legacy_schema:
+                raise ValueError(
+                    "conditions / condition_types と legacy の "
+                    "set_conditions / multivalue_conditions は同時指定できません。"
+                )
+            return self._condition_schema_from_specs(
+                self._normalize_pyqca_condition_schema(conditions, condition_types)
+            )
+
+        if not uses_legacy_schema:
+            raise ValueError(
+                "conditions / condition_types または legacy の "
+                "set_conditions / multivalue_conditions を指定してください。"
+            )
+
+        set_list = list(set_conditions or [])
+        multi_list = list(multivalue_conditions or [])
+        self._check_duplicate_condition_names(set_list)
+        self._check_duplicate_condition_names(multi_list)
+        specs = [
+            *[ConditionSpec(c, self._infer_set_condition_type(c)) for c in set_list],
+            *[ConditionSpec(c, "multi") for c in multi_list],
+        ]
+        return self._condition_schema_from_specs(specs)
+
+    @staticmethod
+    def _condition_schema_from_specs(
+        specs: list[ConditionSpec],
+    ) -> tuple[list[ConditionSpec], list[str], list[str], list[str], dict[str, str]]:
+        set_list, multi_list, condition_list, normalized_types = split_condition_specs(
+            specs
+        )
+        return specs, set_list, multi_list, condition_list, normalized_types
+
+    def _normalize_pyqca_condition_schema(
+        self,
+        conditions: Sequence[str],
+        condition_types: dict[str, str],
+    ) -> list[ConditionSpec]:
+        condition_list = list(conditions)
+        self._check_duplicate_condition_names(condition_list)
+
+        missing_types = [c for c in condition_list if c not in condition_types]
+        if missing_types:
+            raise ValueError(
+                f"condition_types に型指定がない条件があります: {missing_types}"
+            )
+
+        extra_types = [c for c in condition_types if c not in condition_list]
+        if extra_types:
+            raise ValueError(
+                f"conditions に含まれない condition_types キーがあります: {extra_types}"
+            )
+
+        specs: list[ConditionSpec] = []
+
+        for condition in condition_list:
+            condition_type = self._normalize_condition_type(
+                condition, condition_types[condition]
+            )
+            specs.append(ConditionSpec(condition, condition_type))
+
+        return specs
+
+    @staticmethod
+    def _normalize_condition_type(condition: str, condition_type: str) -> str:
+        value = str(condition_type).strip().lower().replace("_", "-")
+        if value in {"crisp", "crisp-set", "cs", "csqca"}:
+            return "crisp"
+        if value in {"fuzzy", "fuzzy-set", "fs", "fsqca"}:
+            return "fuzzy"
+        if value in {"multi", "multi-value", "multivalue", "mv", "mvqca"}:
+            return "multi"
+        raise ValueError(
+            f"condition_types[{condition!r}] に未知の型 {condition_type!r} "
+            "が指定されています。利用可能な型: crisp, fuzzy, multi"
+        )
+
+    @staticmethod
+    def _check_duplicate_condition_names(conditions: Sequence[str]) -> None:
+        seen: set[str] = set()
+        duplicates: list[str] = []
+        for condition in conditions:
+            if condition in seen and condition not in duplicates:
+                duplicates.append(condition)
+            seen.add(condition)
+        if duplicates:
+            raise ValueError(f"conditions に重複があります: {duplicates}")
+
+    def _infer_set_condition_type(self, condition: str) -> str:
+        """Infer whether a legacy set condition is crisp or fuzzy."""
+        if condition not in self.data.columns:
+            return "fuzzy"
+        try:
+            values = pd.to_numeric(self.data[condition], errors="raise").dropna()
+        except (TypeError, ValueError):
+            return "fuzzy"
+        if not values.empty and values.astype(float).isin([0.0, 1.0]).all():
+            return "crisp"
+        return "fuzzy"
+
+    # ------------------------------------------------------------------
+    # プロパティ
+    # ------------------------------------------------------------------
+
+    @property
+    def n_cases(self) -> int:
+        """Return the number of cases."""
+        return len(self.data)
+
+    @property
+    def n_conditions(self) -> int:
+        """Return the number of conditions."""
+        return len(self.set_conditions) + len(self.multivalue_conditions)
+
+    @property
+    def all_condition_names(self) -> list[str]:
+        """Return all condition names in engine order."""
+        return [*self.set_conditions, *self.multivalue_conditions]
+
+    @property
+    def condition_spec_map(self) -> dict[str, ConditionSpec]:
+        """Return normalized condition specs keyed by condition name."""
+        return {spec.name: spec for spec in self.condition_specs}
+
+    @property
+    def condition_schema(self) -> pd.DataFrame:
+        """Return the normalized QCA condition schema."""
+        columns = [
+            "name",
+            "kind",
+            "role",
+            "domain",
+            "calibrated",
+            "is_set",
+            "is_multi",
+        ]
+        rows: list[dict[str, Any]] = []
+        for spec in self.condition_specs:
+            domain = spec.domain
+            if domain is None:
+                if spec.is_set:
+                    domain = (0.0, 1.0)
+                elif spec.name in self.data.columns:
+                    domain = tuple(self._sorted_unique(self.data[spec.name]))
+
+            calibrated = spec.calibrated
+            if calibrated is None:
+                calibrated = spec.is_set
+
+            rows.append(
+                {
+                    "name": spec.name,
+                    "kind": spec.kind,
+                    "role": "set" if spec.is_set else "multi",
+                    "domain": domain,
+                    "calibrated": calibrated,
+                    "is_set": spec.is_set,
+                    "is_multi": spec.is_multi,
+                }
+            )
+
+        return pd.DataFrame(rows, columns=columns)
+
+    @property
+    def outcome_series(self) -> pd.Series:
+        """Return the outcome series as floats."""
+        return self.data[self.outcome].astype(float)
+
+    def __repr__(self) -> str:
+        engine_name = self.__class__.__name__
+        return (
+            f"{engine_name}("
+            f"n_cases={self.n_cases}, "
+            f"set_conditions={self.set_conditions}, "
+            f"multivalue_conditions={self.multivalue_conditions}, "
+            f"outcome={self.outcome!r}"
+            f")"
+        )
+
+    # ------------------------------------------------------------------
+    # High-level API
+    # ------------------------------------------------------------------
+
+    def fit(
+        self,
+        consistency_cutoff: float = 0.75,
+        coverage_cutoff: float | None = None,
+        minimizer: str = "standard",
+        outcome_threshold: float = 0.75,
+        consistency_threshold: float | None = None,
+        frequency_cutoff: int = 1,
+        directional_expectations: dict[str, Any] | None = None,
+        include_remainders_in_parsimonious: bool = True,
+    ):
+        """Run QCA minimization and return a unified PyQCA result object.
+
+        The low-level QMC output remains available as ``result.minimization``
+        and ``result.qm_solution``. The high-level result exposes the stable
+        PyQCA surface described in the README: ``truth_table``, ``solutions``,
+        ``consistency``, ``coverage``, ``case_coverage``, ``to_dataframe()``,
+        and ``to_markdown()``.
+        """
+        backend = self._normalize_minimizer_backend(minimizer)
+        self._validate_optional_cutoff("coverage_cutoff", coverage_cutoff)
+
+        resolved_consistency_threshold = (
+            consistency_threshold
+            if consistency_threshold is not None
+            else consistency_cutoff
+        )
+
+        from qca.minimizers.engine import minimize_truth_table
+
+        minimization = minimize_truth_table(
+            self,
+            outcome_threshold=outcome_threshold,
+            consistency_threshold=resolved_consistency_threshold,
+            frequency_cutoff=frequency_cutoff,
+            directional_expectations=directional_expectations,
+            include_remainders_in_parsimonious=include_remainders_in_parsimonious,
+            backend=backend,
+        )
+        truth_table_rows = self.build_truth_table(outcome_threshold=outcome_threshold)
+        settings = {
+            "minimizer": backend,
+            "workflow": getattr(self, "workflow", getattr(self, "qca_type", None)),
+            "outcome_threshold": outcome_threshold,
+            "consistency_cutoff": consistency_cutoff,
+            "consistency_threshold": resolved_consistency_threshold,
+            "frequency_cutoff": frequency_cutoff,
+            "coverage_cutoff": coverage_cutoff,
+            "directional_expectations": directional_expectations,
+            "include_remainders_in_parsimonious": include_remainders_in_parsimonious,
+        }
+        return self._build_fit_result(
+            minimization=minimization,
+            truth_table_rows=truth_table_rows,
+            settings=settings,
+            coverage_cutoff=coverage_cutoff,
+        )
+
+    def analyze(self, *args: Any, **kwargs: Any):
+        """Alias for ``fit()`` for workflow-style high-level API usage."""
+        return self.fit(*args, **kwargs)
+
+    @staticmethod
+    def _normalize_minimizer_backend(minimizer: str) -> str:
+        from qca.minimizers.backends import normalize_minimizer_backend
+
+        return normalize_minimizer_backend(minimizer)
+
+    @staticmethod
+    def _validate_optional_cutoff(name: str, value: float | None) -> None:
+        if value is None:
+            return
+        if not 0.0 <= float(value) <= 1.0:
+            raise ValueError(f"{name} must be in [0, 1]. Got {value}.")
+
+    def _build_fit_result(
+        self,
+        *,
+        minimization,
+        truth_table_rows: list[TruthTableRow],
+        settings: dict[str, Any],
+        coverage_cutoff: float | None = None,
+    ):
+        """Build the high-level result object from backend minimization output."""
+        from qca.results.solution import QCAFitResult
+
+        solution_metrics = {
+            "complex": self._evaluate_implicant_solution(
+                minimization.complex_solution,
+                minimization.condition_names,
+                "complex",
+                coverage_cutoff=coverage_cutoff,
+            ),
+            "parsimonious": self._evaluate_implicant_solution(
+                minimization.parsimonious_solution,
+                minimization.condition_names,
+                "parsimonious",
+                coverage_cutoff=coverage_cutoff,
+            ),
+            "intermediate": self._evaluate_implicant_solution(
+                minimization.intermediate_solution,
+                minimization.condition_names,
+                "intermediate",
+                coverage_cutoff=coverage_cutoff,
+            ),
+        }
+        selected_solution_type = self._select_solution_type(solution_metrics)
+        if selected_solution_type == "none":
+            selected_terms = []
+        else:
+            selected_terms = self._implicants_to_terms(
+                getattr(minimization, f"{selected_solution_type}_solution"),
+                minimization.condition_names,
+            )
+        case_coverage = self._build_case_coverage(selected_terms)
+        return QCAFitResult(
+            truth_table_rows=truth_table_rows,
+            minimization=minimization,
+            solution_metrics=solution_metrics,
+            case_coverage=case_coverage,
+            settings=settings,
+            selected_solution_type=selected_solution_type,
+            condition_schema=self.condition_schema,
+            outcome=self.outcome,
+            case_id=self.case_id,
+            qca_type=getattr(self, "qca_type", self.__class__.__name__),
+        )
+
+    @staticmethod
+    def _select_solution_type(
+        solution_metrics: dict[str, SufficiencyResult | None],
+    ) -> str:
+        for solution_type in ("intermediate", "parsimonious", "complex"):
+            if solution_metrics.get(solution_type) is not None:
+                return solution_type
+        return "none"
+
+    def _evaluate_implicant_solution(
+        self,
+        implicants,
+        condition_names: list[str],
+        solution_type: str,
+        coverage_cutoff: float | None = None,
+    ) -> SufficiencyResult | None:
+        terms = self._implicants_to_terms(implicants, condition_names)
+        if not terms:
+            return None
+        x = self._solution_membership(terms)
+        label = self._terms_label(terms, fallback=solution_type)
+        result = self._calc_sufficiency(
+            label,
+            x.astype(float),
+            self.outcome_series,
+            solution_coverage=None,
+        )
+        if coverage_cutoff is not None and result.raw_coverage < coverage_cutoff:
+            return None
+        return result
+
+    def _implicants_to_terms(
+        self,
+        implicants,
+        condition_names: list[str],
+    ) -> list[list[SetLiteral | MultiValueLiteral]]:
+        return [
+            self._implicant_to_literals(implicant, condition_names)
+            for implicant in implicants
+        ]
+
+    def _implicant_to_literals(
+        self,
+        implicant,
+        condition_names: list[str],
+    ) -> list[SetLiteral | MultiValueLiteral]:
+        literals: list[SetLiteral | MultiValueLiteral] = []
+        for condition, value in zip(condition_names, implicant.pattern, strict=False):
+            if value == DONT_CARE:
+                continue
+            if condition in self.set_conditions:
+                literals.append(SetLiteral(condition, negated=int(value) == 0))
+            elif condition in self.multivalue_conditions:
+                literals.append(MultiValueLiteral(condition, value))
+        return literals
+
+    def _solution_membership(
+        self,
+        terms: Sequence[Sequence[SetLiteral | MultiValueLiteral]],
+    ) -> pd.Series:
+        if not terms:
+            return pd.Series(np.zeros(self.n_cases, dtype=float), index=self.data.index)
+        memberships = [self._term_membership(term) for term in terms]
+        return pd.concat(memberships, axis=1).max(axis=1)
+
+    def _term_membership(
+        self,
+        term: Sequence[SetLiteral | MultiValueLiteral],
+    ) -> pd.Series:
+        if not term:
+            return pd.Series(np.ones(self.n_cases, dtype=float), index=self.data.index)
+        return self.conjunction_membership(term)
+
+    @staticmethod
+    def _terms_label(
+        terms: Sequence[Sequence[SetLiteral | MultiValueLiteral]],
+        fallback: str,
+    ) -> str:
+        if not terms:
+            return fallback
+        labels: list[str] = []
+        for term in terms:
+            labels.append(
+                " * ".join(lit.label() for lit in term) if term else "(tautology)"
+            )
+        return " + ".join(f"({label})" for label in labels)
+
+    def _build_case_coverage(
+        self,
+        selected_terms: Sequence[Sequence[SetLiteral | MultiValueLiteral]],
+    ) -> pd.DataFrame:
+        membership = self._solution_membership(selected_terms).astype(float)
+        outcome = self.outcome_series.astype(float)
+        return pd.DataFrame(
+            {
+                "case_id": self.data[self.case_id].astype(str),
+                "outcome": outcome,
+                "solution_membership": membership,
+                "covered_membership": np.minimum(
+                    membership.to_numpy(dtype=float),
+                    outcome.to_numpy(dtype=float),
+                ),
+                "covered": membership.to_numpy(dtype=float) > MEMBERSHIP_THRESHOLD,
+                "in_outcome": outcome.to_numpy(dtype=float) > MEMBERSHIP_THRESHOLD,
+            }
+        )
+
+    # ------------------------------------------------------------------
+    # 検証
+    # ------------------------------------------------------------------
+
+    def _validate(self) -> None:
+        """Validate model data and schema consistency."""
+        self._check_required_columns()
+        self._coerce_set_conditions()
+        self._coerce_outcome()
+        self._check_duplicate_case_ids()
+        self._check_condition_overlap()
+
+    def _check_required_columns(self) -> None:
+        required = [
+            self.case_id,
+            *self.set_conditions,
+            *self.multivalue_conditions,
+            self.outcome,
+        ]
+        missing = [c for c in required if c not in self.data.columns]
+        if missing:
+            raise ValueError(
+                f"必須カラムが DataFrame に存在しません: {missing}\n"
+                f"利用可能なカラム: {list(self.data.columns)}"
+            )
+
+    def _coerce_set_conditions(self) -> None:
+        """Coerce set conditions."""
+        for c in self.set_conditions:
+            try:
+                vals = pd.to_numeric(self.data[c], errors="raise").astype(float)
+            except (ValueError, TypeError) as e:
+                raise TypeError(
+                    f"set_condition '{c}' を数値に変換できません: {e}"
+                ) from e
+
+            if not ((vals >= 0.0).all() and (vals <= 1.0).all()):
+                raise ValueError(
+                    f"set_condition '{c}' は [0, 1] の範囲内である必要があります。"
+                    f"検出された範囲: [{vals.min():.4f}, {vals.max():.4f}]"
+                )
+            # 変換済みの float 値をデータに書き戻す
+            self.data[c] = vals
+
+    def _coerce_outcome(self) -> None:
+        """Coerce outcome."""
+        try:
+            y = pd.to_numeric(self.data[self.outcome], errors="raise").astype(float)
+        except (ValueError, TypeError) as e:
+            raise TypeError(
+                f"outcome '{self.outcome}' を数値に変換できません: {e}"
+            ) from e
+
+        if not ((y >= 0.0).all() and (y <= 1.0).all()):
+            raise ValueError(
+                f"outcome '{self.outcome}' は [0, 1] の範囲内である必要があります。"
+                f"検出された範囲: [{y.min():.4f}, {y.max():.4f}]"
+            )
+        self.data[self.outcome] = y
+
+    def _check_duplicate_case_ids(self) -> None:
+        mask = self.data[self.case_id].duplicated()
+        if mask.any():
+            dupes = self.data[self.case_id][mask].unique().tolist()
+            raise ValueError(f"case_id '{self.case_id}' に重複があります: {dupes}")
+
+    def _check_condition_overlap(self) -> None:
+        overlap = set(self.set_conditions) & set(self.multivalue_conditions)
+        if overlap:
+            raise ValueError(
+                f"set_conditions と multivalue_conditions に重複カラムがあります: "
+                f"{sorted(overlap)}"
+            )
+
+    # ------------------------------------------------------------------
+    # リテラル生成
+    # ------------------------------------------------------------------
+
+    def _all_literals(
+        self, include_negations: bool = True
+    ) -> list[SetLiteral | MultiValueLiteral]:
+        """Generate literals for all model conditions."""
+        literals: list[SetLiteral | MultiValueLiteral] = []
+
+        for c in self.set_conditions:
+            literals.append(SetLiteral(c, negated=False))
+            if include_negations:
+                literals.append(SetLiteral(c, negated=True))
+
+        for c in self.multivalue_conditions:
+            for v in self._sorted_unique(self.data[c]):
+                literals.append(MultiValueLiteral(c, v))
+
+        return literals
+
+    @staticmethod
+    def _sorted_unique(series: pd.Series) -> list[Any]:
+        """Return unique values sorted with numeric values first."""
+        unique_vals = series.dropna().unique().tolist()
+
+        def _sort_key(v: Any) -> tuple:
+            try:
+                return (0, float(v), "")
+            except (TypeError, ValueError):
+                return (1, 0.0, str(v))
+
+        return sorted(unique_vals, key=_sort_key)
+
+    # ------------------------------------------------------------------
+    # 矛盾検出
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_contradictory(
+        literals: Sequence[SetLiteral | MultiValueLiteral],
+    ) -> bool:
+        """Return whether a literal combination contains contradictions."""
+        set_seen: dict[str, set[bool]] = {}
+        mv_values: dict[str, set[Any]] = {}
+
+        for lit in literals:
+            if isinstance(lit, SetLiteral):
+                negation_set = set_seen.setdefault(lit.name, set())
+                negation_set.add(lit.negated)
+                if len(negation_set) > 1:
+                    return True
+            elif isinstance(lit, MultiValueLiteral):
+                value_set = mv_values.setdefault(lit.name, set())
+                value_set.add(lit.value)
+                if len(value_set) > 1:
+                    return True
+
+        return False
+
+    # ------------------------------------------------------------------
+    # メンバーシップ計算
+    # ------------------------------------------------------------------
+
+    def conjunction_membership(
+        self,
+        literals: Sequence[SetLiteral | MultiValueLiteral],
+    ) -> pd.Series:
+        """Compute fuzzy membership for a conjunction."""
+        if not literals:
+            raise ValueError("literals は空にできません。少なくとも1件必要です。")
+
+        if self._is_contradictory(literals):
+            labels = [lit.label() for lit in literals]
+            raise ValueError(
+                f"矛盾する conjunction です: {labels}\n"
+                f"同名の正・否定 (A かつ ~A) または "
+                f"同一多値条件の複数値 (TYPE=1 かつ TYPE=2) が含まれています。"
+            )
+
+        memberships = [lit.membership(self.data) for lit in literals]
+        return pd.concat(memberships, axis=1).min(axis=1)
+
+    def disjunction_membership(
+        self,
+        terms: Sequence[Sequence[SetLiteral | MultiValueLiteral]],
+    ) -> pd.Series:
+        """Compute fuzzy membership for a disjunction."""
+        if not terms:
+            raise ValueError("terms は空にできません。少なくとも1件必要です。")
+
+        term_memberships = [self.conjunction_membership(term) for term in terms]
+        return pd.concat(term_memberships, axis=1).max(axis=1)
+
+    # ------------------------------------------------------------------
+    # 十分性評価
+    # ------------------------------------------------------------------
+
+    def evaluate_sufficiency(
+        self,
+        literals: Sequence[SetLiteral | MultiValueLiteral],
+        solution_coverage: pd.Series | None = None,
+    ) -> SufficiencyResult:
+        """Evaluate sufficiency for one conjunction."""
+        x = self.conjunction_membership(literals).astype(float)
+        y = self.outcome_series
+        label = " * ".join(lit.label() for lit in literals)
+        return self._calc_sufficiency(label, x, y, solution_coverage)
+
+    def evaluate_solution(
+        self,
+        terms: Sequence[Sequence[SetLiteral | MultiValueLiteral]],
+    ) -> SufficiencyResult:
+        """Evaluate solution."""
+        x = self.disjunction_membership(terms).astype(float)
+        y = self.outcome_series
+        label = " + ".join(
+            "(" + " * ".join(lit.label() for lit in term) + ")" for term in terms
+        )
+        return self._calc_sufficiency(label, x, y, solution_coverage=None)
+
+    def _calc_sufficiency(
+        self,
+        label: str,
+        x: pd.Series,
+        y: pd.Series,
+        solution_coverage: pd.Series | None,
+    ) -> SufficiencyResult:
+        """Compute sufficiency metrics."""
+        x_arr = x.to_numpy(dtype=float)
+        y_arr = y.to_numpy(dtype=float)
+
+        n_cases_in = int((x_arr > MEMBERSHIP_THRESHOLD).sum())
+        x_sum = float(x_arr.sum())
+        y_sum = float(y_arr.sum())
+
+        # 実質的なケースが存在しない場合
+        if n_cases_in == 0 or np.isclose(x_sum, 0.0, atol=ZERO_EPSILON):
+            return SufficiencyResult(
+                antecedent=label,
+                consistency=0.0,
+                raw_coverage=0.0,
+                unique_coverage=None,
+                n_cases_in=0,
+            )
+
+        min_xy = np.minimum(x_arr, y_arr)
+        min_xy_sum = float(min_xy.sum())
+
+        consistency = min_xy_sum / x_sum
+        raw_coverage = (
+            min_xy_sum / y_sum if not np.isclose(y_sum, 0.0, atol=ZERO_EPSILON) else 0.0
+        )
+
+        # unique coverage の計算
+        unique_coverage: float | None = None
+        if solution_coverage is not None:
+            s_arr = solution_coverage.to_numpy(dtype=float)
+            unique_num = float(
+                np.sum(
+                    np.maximum(
+                        np.minimum(x_arr, y_arr) - np.minimum(s_arr, y_arr),
+                        0.0,
+                    )
+                )
+            )
+            unique_coverage = (
+                unique_num / y_sum
+                if not np.isclose(y_sum, 0.0, atol=ZERO_EPSILON)
+                else 0.0
+            )
+
+        return SufficiencyResult(
+            antecedent=label,
+            consistency=consistency,
+            raw_coverage=raw_coverage,
+            unique_coverage=unique_coverage,
+            n_cases_in=n_cases_in,
+        )
+
+    # ------------------------------------------------------------------
+    # 必要性評価
+    # ------------------------------------------------------------------
+
+    def evaluate_necessity(
+        self,
+        literal: SetLiteral | MultiValueLiteral,
+    ) -> NecessityResult:
+        """Evaluate necessity for one literal."""
+        x = literal.membership(self.data).astype(float)
+        y = self.outcome_series
+
+        x_arr = x.to_numpy(dtype=float)
+        y_arr = y.to_numpy(dtype=float)
+
+        y_sum = float(y_arr.sum())
+        x_sum = float(x_arr.sum())
+        min_xy_sum = float(np.minimum(x_arr, y_arr).sum())
+
+        consistency = (
+            min_xy_sum / y_sum if not np.isclose(y_sum, 0.0, atol=ZERO_EPSILON) else 0.0
+        )
+        coverage = (
+            min_xy_sum / x_sum if not np.isclose(x_sum, 0.0, atol=ZERO_EPSILON) else 0.0
+        )
+
+        return NecessityResult(
+            condition=literal.label(),
+            consistency=consistency,
+            coverage=coverage,
+            n_cases_in=int((x_arr > MEMBERSHIP_THRESHOLD).sum()),
+        )
+
+    # ------------------------------------------------------------------
+    # Unique coverage の計算
+    # ------------------------------------------------------------------
+
+    def compute_solution_coverages(
+        self,
+        terms: Sequence[Sequence[SetLiteral | MultiValueLiteral]],
+    ) -> list[SufficiencyResult]:
+        """Compute unique coverage for terms in a solution."""
+        y = self.outcome_series
+        results: list[SufficiencyResult] = []
+
+        for i, term in enumerate(terms):
+            other_terms = [t for j, t in enumerate(terms) if j != i]
+
+            if other_terms:
+                solution_without = self.disjunction_membership(other_terms)
+            else:
+                # 解が1項のみ: 残余解 = ゼロベクトル
+                solution_without = pd.Series(
+                    np.zeros(self.n_cases, dtype=float),
+                    index=self.data.index,
+                )
+
+            x = self.conjunction_membership(term).astype(float)
+            label = " * ".join(lit.label() for lit in term)
+            result = self._calc_sufficiency(
+                label, x, y, solution_coverage=solution_without
+            )
+            results.append(result)
+
+        return results
+
+    # ------------------------------------------------------------------
+    # 網羅探索
+    # ------------------------------------------------------------------
+
+    def search_sufficient_configurations(
+        self,
+        max_depth: int = 3,
+        include_negations: bool = True,
+        min_consistency: float = 0.8,
+        min_coverage: float = 0.1,
+        min_cases: int = 1,
+    ) -> pd.DataFrame:
+        """Search candidate sufficient configurations."""
+        all_literals = self._all_literals(include_negations=include_negations)
+
+        # 事前フィルタ: 単体で min_cases を満たさないリテラルを除外
+        viable_literals = [
+            lit for lit in all_literals if self._n_cases_in(lit) >= min_cases
+        ]
+
+        if not viable_literals:
+            warnings.warn(
+                f"min_cases={min_cases} を満たすリテラルが存在しません。"
+                "min_cases を下げるか、データを確認してください。",
+                UserWarning,
+                stacklevel=2,
+            )
+            return self._empty_sufficiency_df()
+
+        all_results: list[SufficiencyResult] = []
+        depth_info: list[int] = []
+
+        for depth in range(1, max_depth + 1):
+            for combo in combinations(viable_literals, depth):
+                if self._is_contradictory(combo):
+                    continue
+
+                res = self.evaluate_sufficiency(combo)
+
+                if (
+                    res.consistency >= min_consistency
+                    and res.raw_coverage >= min_coverage
+                    and res.n_cases_in >= min_cases
+                ):
+                    all_results.append(res)
+                    depth_info.append(depth)
+
+        if not all_results:
+            warnings.warn(
+                f"閾値を満たす十分条件が見つかりませんでした。"
+                f"(min_consistency={min_consistency}, "
+                f"min_coverage={min_coverage}, "
+                f"min_cases={min_cases})\n"
+                "閾値を下げるか max_depth を増やすことを検討してください。",
+                UserWarning,
+                stacklevel=2,
+            )
+            return self._empty_sufficiency_df()
+
+        df = sufficiency_results_to_df(all_results)
+        df["depth"] = depth_info
+
+        return df.sort_values(
+            ["consistency", "raw_coverage", "depth", "n_cases_in"],
+            ascending=[False, False, True, False],
+        ).reset_index(drop=True)
+
+    def search_necessary_conditions(
+        self,
+        include_negations: bool = True,
+        min_consistency: float = 0.9,
+        min_coverage: float = 0.1,
+    ) -> pd.DataFrame:
+        """Search candidate necessary conditions."""
+        all_results: list[NecessityResult] = []
+
+        for lit in self._all_literals(include_negations=include_negations):
+            res = self.evaluate_necessity(lit)
+            if res.consistency >= min_consistency and res.coverage >= min_coverage:
+                all_results.append(res)
+
+        if not all_results:
+            warnings.warn(
+                f"閾値を満たす必要条件が見つかりませんでした。"
+                f"(min_consistency={min_consistency}, "
+                f"min_coverage={min_coverage})\n"
+                "閾値を下げることを検討してください。",
+                UserWarning,
+                stacklevel=2,
+            )
+            return necessity_results_to_df([])
+
+        df = necessity_results_to_df(all_results)
+
+        return df.sort_values(
+            ["consistency", "coverage", "n_cases_in"],
+            ascending=[False, False, False],
+        ).reset_index(drop=True)
+
+    # ------------------------------------------------------------------
+    # 真理表の構築
+    # ------------------------------------------------------------------
+
+    def build_truth_table(
+        self,
+        outcome_threshold: float = 0.5,
+    ) -> list[TruthTableRow]:
+        """Build a QCA truth table."""
+        work = self.data.copy()
+
+        # set_conditions を二値化（グループ化専用の一時列）
+        crisp_col_map: dict[str, str] = {}
+        for c in self.set_conditions:
+            col = f"__crisp_{c}"
+            work[col] = (work[c] >= MEMBERSHIP_THRESHOLD).astype(int)
+            crisp_col_map[c] = col
+
+        group_cols = [
+            *crisp_col_map.values(),
+            *self.multivalue_conditions,
+        ]
+
+        rows: list[TruthTableRow] = []
+
+        for keys, group_idx in work.groupby(
+            group_cols, dropna=False, sort=True
+        ).groups.items():
+            # groupby のキーが単一要素のとき tuple でなくなるため正規化
+            if not isinstance(keys, tuple):
+                keys = (keys,)
+
+            # 構成辞書を作成（元のカラム名をキーとする）
+            config = self._keys_to_config(keys)
+
+            group_data = self.data.loc[group_idx]
+            y_vals = group_data[self.outcome].astype(float)
+            outcome_mean = float(y_vals.mean())
+
+            # 行一貫性スコア: 元のファジィスコアで計算
+            row_consist = self._calc_row_consistency(config, group_idx, y_vals)
+
+            case_ids = group_data[self.case_id].astype(str).tolist()
+
+            rows.append(
+                TruthTableRow(
+                    config=config,
+                    n_cases=len(group_data),
+                    outcome_mean=outcome_mean,
+                    outcome_raw_consist=row_consist,
+                    case_ids=case_ids,
+                    include=outcome_mean >= outcome_threshold,
+                )
+            )
+
+        rows.sort(key=lambda r: (-r.outcome_mean, -r.n_cases))
+        return rows
+
+    def truth_table_to_df(
+        self,
+        outcome_threshold: float = 0.5,
+    ) -> pd.DataFrame:
+        """Return the truth table as a DataFrame."""
+        rows = self.build_truth_table(outcome_threshold)
+        return truth_table_to_df(rows)
+
+    def _keys_to_config(self, keys: tuple[Any, ...]) -> dict[str, Any]:
+        """Convert group-by keys into a configuration dictionary."""
+        config: dict[str, Any] = {}
+        key_iter = iter(keys)
+
+        for orig_c in self.set_conditions:
+            config[orig_c] = int(next(key_iter))
+
+        for mv_c in self.multivalue_conditions:
+            config[mv_c] = next(key_iter)
+
+        return config
+
+    def _calc_row_consistency(
+        self,
+        config: dict[str, Any],
+        group_idx: pd.Index,
+        y_vals: pd.Series,
+    ) -> float:
+        """Compute row-level truth-table consistency."""
+        config_literals = self._config_to_literals(config)
+
+        # conjunction_membership は self.data 全体に対して計算し、
+        # group_idx でグループに属するケースのみを取り出す
+        x_vals = (
+            self.conjunction_membership(config_literals).loc[group_idx].astype(float)
+        )
+
+        x_arr = x_vals.to_numpy(dtype=float)
+        y_arr = y_vals.to_numpy(dtype=float)
+        x_sum = float(x_arr.sum())
+
+        if np.isclose(x_sum, 0.0, atol=ZERO_EPSILON):
+            return 0.0
+
+        return float(np.minimum(x_arr, y_arr).sum()) / x_sum
+
+    def _config_to_literals(
+        self, config: dict[str, Any]
+    ) -> list[SetLiteral | MultiValueLiteral]:
+        """Convert a truth-table configuration into literals."""
+        literals: list[SetLiteral | MultiValueLiteral] = []
+        for c, v in config.items():
+            if c in self.set_conditions:
+                negated = int(v) == 0
+                literals.append(SetLiteral(c, negated=negated))
+            elif c in self.multivalue_conditions:
+                literals.append(MultiValueLiteral(c, v))
+        return literals
+
+    # ------------------------------------------------------------------
+    # 内部ユーティリティ
+    # ------------------------------------------------------------------
+
+    def _n_cases_in(self, lit: SetLiteral | MultiValueLiteral) -> int:
+        """Return the number of cases with membership above the threshold."""
+        membership = lit.membership(self.data).to_numpy(dtype=float)
+        return int((membership > MEMBERSHIP_THRESHOLD).sum())
+
+    @staticmethod
+    def _empty_sufficiency_df() -> pd.DataFrame:
+        """Return an empty sufficiency-results DataFrame."""
+        return pd.DataFrame(
+            columns=[
+                "antecedent",
+                "consistency",
+                "raw_coverage",
+                "unique_coverage",
+                "n_cases_in",
+                "is_sufficient",
+                "strength",
+                "depth",
+            ]
+        )
+
+
+__all__ = ["QCAEngineBase"]

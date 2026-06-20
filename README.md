@@ -2,9 +2,36 @@
 
 **PyQCA** is a Python-native toolkit for **Qualitative Comparative Analysis (QCA)**.
 
-It provides a unified framework for running **multi-value QCA (mvQCA)**, **fuzzy-set QCA (fsQCA)**, and mixed-type configurational analysis in Python. PyQCA also supports pluggable minimization backends, including standard Boolean minimization and set-covering-based minimization, as well as threshold-sweep analysis inspired by the ThS-QCA framework.
+[![CI](https://github.com/t-yamsaki/PyQCA/actions/workflows/ci.yml/badge.svg)](https://github.com/t-yamsaki/PyQCA/actions/workflows/ci.yml)
+[![Documentation](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml/badge.svg)](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml)
+
+[日本語 README](README.ja.md)
+
+It provides a unified framework for running **crisp-set QCA (csQCA)**,
+**multi-value QCA (mvQCA)**, **fuzzy-set QCA (fsQCA)**, mixed-type
+configurational analysis, and **machine-learning-enhanced QCA (mlQCA)** in
+Python. PyQCA also supports pluggable minimization backends, threshold and
+calibration sensitivity analysis, reporting, and reproducibility tools.
 
 > Status: experimental / under active development
+
+---
+
+## Documentation
+
+The Sphinx documentation covers installation, core and mixed QCA, calibration,
+minimization, sensitivity analysis, reporting, mlQCA, and the generated API
+reference. It is configured for publication on Read the Docs.
+
+Build it locally with:
+
+```bash
+python -m pip install -e ".[docs]"
+python -m sphinx -W --keep-going -b html docs docs/_build/html
+```
+
+Until the Read the Docs project is connected, open
+`docs/_build/html/index.html` after a local build.
 
 ---
 
@@ -14,11 +41,15 @@ QCA is widely used in social science, management research, political science, ev
 
 PyQCA aims to provide a Python-native QCA foundation for researchers and practitioners who want to:
 
-* run mvQCA and fsQCA directly in Python;
+* run csQCA, mvQCA, and fsQCA directly in Python;
 * analyze crisp, multi-valued, and fuzzy-set conditions in a unified interface;
 * switch between different minimization algorithms;
 * inspect consistency, coverage, truth tables, and solution formulas;
 * conduct threshold-sensitivity analysis systematically;
+* use XGBoost evidence to propose conditions, calibration thresholds, and QCA
+  model combinations;
+* evaluate mlQCA condition and cutoff stability with cross-validation and
+  bootstrap resampling;
 * integrate QCA workflows with Python data science tools such as pandas, NumPy, scikit-learn, Jupyter, and visualization libraries.
 
 PyQCA is not intended to be only a thin wrapper around existing R packages. The goal is to provide a Python-native architecture for standard QCA workflows and future methodological extensions.
@@ -27,7 +58,31 @@ PyQCA is not intended to be only a thin wrapper around existing R packages. The 
 
 ## Core Features
 
-### 1. mvQCA
+### 1. csQCA
+
+Run crisp-set QCA on binary set-membership scores.
+
+```python
+from qca import CSQCA
+
+model = CSQCA(
+    data=df,
+    outcome="Y",
+    conditions=["A", "B", "C"],
+)
+
+result = model.fit(
+    consistency_cutoff=0.8,
+    coverage_cutoff=0.1,
+)
+
+print(result.truth_table)
+print(result.solutions)
+```
+
+---
+
+### 2. mvQCA
 
 Run multi-value QCA on categorical and ordinal conditions.
 
@@ -52,17 +107,21 @@ print(result.coverage)
 
 ---
 
-### 2. fsQCA
+### 3. fsQCA
 
 Run fuzzy-set QCA with calibrated set-membership scores.
 
 ```python
-from qca import FSQCA
+from qca import FSQCA, calibrate_crisp, calibrate_piecewise
+
+calibrated = calibrate_piecewise(df, "raw_score", out_col="A").df
+calibrated = calibrate_crisp(calibrated, "raw_flag", threshold=1, out_col="B").df
 
 model = FSQCA(
-    data=df,
+    data=calibrated,
     outcome="Y",
-    conditions=["A", "B", "C"],
+    conditions=["A", "B"],
+    condition_types={"A": "fuzzy", "B": "crisp"},
 )
 
 result = model.fit(
@@ -76,7 +135,7 @@ print(result.solutions)
 
 ---
 
-### 3. MixedQCA
+### 4. MixedQCA
 
 `MixedQCA` is the high-level interface for datasets containing multiple condition types.
 
@@ -106,11 +165,26 @@ result = model.fit(
 print(result.summary())
 ```
 
+The same workflow can be built from the unified condition schema:
+
+```python
+schema = [
+    {"name": "A", "type": "crisp", "domain": [0, 1], "calibrated": True},
+    {"name": "B", "type": "multi-value", "domain": ["low", "high"]},
+    {"name": "C", "type": "fuzzy", "domain": [0, 1], "calibrated": True},
+]
+
+model = MixedQCA.from_schema(data=df, outcome="Y", schema=schema)
+
+print(model.workflow)          # mixed-crisp-fuzzy-multi
+print(model.condition_schema)  # normalized schema DataFrame
+```
+
 The purpose of `MixedQCA` is to make mixed-type configurational analysis explicit, rather than forcing all variables into a single representation too early.
 
 ---
 
-### 4. Pluggable Minimization Backends
+### 5. Pluggable Minimization Backends
 
 PyQCA separates the QCA engine from the minimization algorithm.
 
@@ -128,7 +202,7 @@ result = model.fit(
 )
 ```
 
-Available or planned minimizers:
+Available minimizers:
 
 | Minimizer          | Description                                          |
 | ------------------ | ---------------------------------------------------- |
@@ -140,41 +214,70 @@ Available or planned minimizers:
 
 Set-covering-based minimization is designed as an alternative backend, especially useful for large mvQCA-style candidate rule spaces.
 
+Backends can also be benchmarked against the same model and thresholds:
+
+```python
+from qca import benchmark_minimizers
+
+bench = benchmark_minimizers(
+    model,
+    minimizers=["standard", "qmc", "greedy_set_cover", "exact_set_cover"],
+    outcome_threshold=0.75,
+    consistency_cutoff=0.75,
+)
+
+print(bench.summary())
+```
+
 ---
 
-### 5. ThresholdSweep
+### 6. ThresholdSweep
 
 PyQCA includes a threshold-sweep analysis layer inspired by the ThS-QCA framework.
 
 Instead of treating thresholds as fixed preprocessing choices, `ThresholdSweep` treats them as explicit analytical variables.
 
 ```python
-from qca import MixedQCA
-from qca.sweep import ThresholdSweep
+import pandas as pd
 
-base = MixedQCA(
-    data=df,
-    outcome="Y",
-    conditions=["X1", "X2", "X3"],
-    condition_types={
-        "X1": "crisp",
-        "X2": "multi",
-        "X3": "fuzzy",
-    },
+from qca import ThresholdSweep
+
+raw_df = pd.DataFrame(
+    {
+        "case": [f"c{i}" for i in range(1, 9)],
+        "X1": [9, 8, 8, 7, 6, 5, 4, 3],
+        "X2": [8, 8, 7, 6, 7, 5, 4, 2],
+        "X3": [9, 7, 8, 6, 5, 6, 3, 2],
+        "Y": [10, 9, 9, 8, 7, 6, 4, 2],
+    }
 )
 
-sweep = ThresholdSweep(base)
+sweep = ThresholdSweep(
+    raw_df,
+    outcome="Y",
+    conditions=["X1", "X2", "X3"],
+    case_id="case",
+)
 
 result = sweep.outcome(
     thresholds=[6, 7, 8, 9],
-    consistency_cutoff=0.8,
+    condition_thresholds={"X1": 7, "X2": 7, "X3": 7},
+    incl_cut=0.8,
+    n_cut=1,
     coverage_cutoff=0.1,
 )
 
 print(result.summary_df)
 ```
 
-Planned sweep modes:
+`ThresholdSweep` follows the ThSQCA threshold algorithm:
+
+* raw variables are binarized with `x >= threshold`;
+* the outcome is always threshold-binarized for each run;
+* pre-calibrated condition variables can be passed through with `pre_calibrated`;
+* `outcome`, `condition`, `multi_condition`, and `dual` mirror ThSQCA's `otSweep`, `ctSweepS`, `ctSweepM`, and `dtSweep` modes.
+
+Available sweep modes:
 
 | API                       | Purpose                                        |
 | ------------------------- | ---------------------------------------------- |
@@ -186,17 +289,65 @@ Planned sweep modes:
 
 ---
 
+### 7. Machine-Learning-Enhanced QCA
+
+The optional `qca.mlqca` workflow connects predictive modeling to PyQCA's
+native QCA engines. It uses XGBoost to rank candidate conditions and extract
+split thresholds, then applies PyQCA calibration, csQCA or MixedQCA analysis,
+radical or theory-constrained model search, Pareto evaluation, and
+cross-validation or bootstrap stability analysis.
+
+```python
+from qca import (
+    MLQCAConfig,
+    fit_xgboost_predictor,
+    search_csqca_models,
+    validate_mlqca_input,
+)
+
+# raw_df contains numeric candidate conditions and a binary outcome Y.
+validated = validate_mlqca_input(raw_df, outcome="Y")
+config = MLQCAConfig(mode="radical", top_k=10, model_size=4)
+predictor = fit_xgboost_predictor(validated, config)
+result = search_csqca_models(validated, predictor, config)
+```
+
+XGBoost and scikit-learn are optional dependencies. See
+[Machine-Learning-Enhanced QCA Workflow](#machine-learning-enhanced-qca-workflow) for the
+complete workflow, mixed-type integration, stability analysis, and published
+example reproduction.
+
+---
+
 ## Example: Outcome Threshold Sweep
 
 ```python
+import pandas as pd
 from qca.sweep import ThresholdSweep
 
-sweep = ThresholdSweep(model)
+sweep_df = pd.DataFrame(
+    {
+        "case": [f"c{i}" for i in range(1, 13)],
+        "A": [9, 8, 8, 7, 7, 6, 6, 5, 5, 4, 3, 2],
+        "B": [8, 8, 7, 7, 6, 6, 5, 5, 4, 4, 3, 2],
+        "C": [9, 7, 8, 6, 7, 5, 6, 4, 5, 3, 4, 2],
+        "Y": [10, 9, 9, 8, 8, 7, 7, 6, 5, 4, 3, 2],
+    }
+)
+
+sweep = ThresholdSweep(
+    sweep_df,
+    outcome="Y",
+    conditions=["A", "B", "C"],
+    case_id="case",
+)
 
 res = sweep.outcome(
     thresholds=[5, 6, 7, 8, 9],
+    condition_thresholds={"A": 7, "B": 7, "C": 7},
     minimizer="set_cover",
-    consistency_cutoff=0.85,
+    incl_cut=0.85,
+    n_cut=1,
     coverage_cutoff=0.1,
 )
 
@@ -205,13 +356,13 @@ res.summary_df
 
 Example output:
 
-| outcome_threshold | n_solutions | best_solution | consistency | coverage |
-| ----------------: | ----------: | ------------- | ----------: | -------: |
-|                 5 |           3 | A*B + C       |        0.88 |     0.62 |
-|                 6 |           2 | A*B           |        0.90 |     0.55 |
-|                 7 |           1 | A*B*~C        |        0.92 |     0.41 |
-|                 8 |           1 | A*B*D         |        0.91 |     0.33 |
-|                 9 |           0 | —             |           — |        — |
+| thrY | expression          | consistency | coverage | n_solutions | solution_type | valid |
+| ---: | ------------------- | ----------: | -------: | ----------: | ------------- | :---- |
+|  5.0 | (A * C) + (A * B)  |        1.00 |     0.56 |           1 | complex       | True  |
+|  6.0 | (A * C) + (A * B)  |        1.00 |     0.63 |           1 | complex       | True  |
+|  7.0 | (A * C) + (A * B)  |        1.00 |     0.71 |           1 | complex       | True  |
+|  8.0 | (A * C) + (A * B)  |        1.00 |     1.00 |           1 | complex       | True  |
+|  9.0 | (A * B * C)        |        1.00 |     1.00 |           1 | complex       | True  |
 
 This helps researchers inspect how sufficient configurations emerge, disappear, branch, or become more complex as thresholds change.
 
@@ -221,21 +372,228 @@ This helps researchers inspect how sufficient configurations emerge, disappear, 
 
 For fuzzy-set QCA, threshold sensitivity often appears through calibration anchors: full non-membership, crossover, and full membership.
 
-PyQCA plans to support anchor sweep analysis directly.
+PyQCA supports anchor sweep analysis through `AnchorSensitivity` and the convenience `ThresholdSweep.fuzzy_anchors()` adapter.
 
 ```python
-res = sweep.fuzzy_anchors(
-    variable="X3",
-    full_out=[1, 2, 3],
-    crossover=[5, 6],
-    full_in=[8, 9, 10],
-    consistency_cutoff=0.8,
+import pandas as pd
+from qca import ThresholdSweep
+
+anchor_df = pd.DataFrame(
+    {
+        "case": [f"c{i}" for i in range(1, 11)],
+        "Budget": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        "Capacity": [0, 0, 0, 1, 1, 0, 1, 1, 1, 1],
+        "Y": [0.05, 0.10, 0.20, 0.40, 0.55, 0.50, 0.70, 0.80, 0.90, 0.95],
+    }
 )
 
+anchor_sweep = ThresholdSweep(
+    anchor_df,
+    outcome="Y",
+    conditions=["Budget", "Capacity"],
+    case_id="case",
+)
+
+res = anchor_sweep.fuzzy_anchors(
+    condition="Budget",
+    anchor_grid={
+        "full_out": [1, 2, 3],
+        "crossover": [5, 6],
+        "full_in": [8, 9, 10],
+    },
+    incl_cut=0.8,
+    outcome_threshold=0.75,
+)
+
+print(res.stability)
+print(res.to_markdown())
 res.plot_heatmap()
 ```
 
-This feature is intended to extend threshold-sweep analysis beyond crisp-set dichotomization and into fuzzy-set calibration sensitivity.
+The dedicated API can also sweep one anchor family at a time:
+
+```python
+from qca import AnchorSensitivity
+
+anchors = AnchorSensitivity(
+    anchor_df,
+    outcome="Y",
+    conditions=["Budget", "Capacity"],
+    case_id="case",
+)
+
+res = anchors.crossover(
+    "Budget",
+    values=[5, 6, 7],
+    full_out=1,
+    full_in=10,
+    incl_cut=0.8,
+)
+```
+
+This extends threshold-sweep analysis beyond crisp-set dichotomization and into fuzzy-set calibration sensitivity.
+
+---
+
+## Example: Reporting and Reproducibility
+
+```python
+from pathlib import Path
+
+from qca import (
+    ExperimentLogger,
+    collect_reproducibility_metadata,
+    generate_markdown_report,
+    jupyter_summary,
+    to_latex_table,
+)
+from qca.viz import plot_configuration_chart
+
+result = model.fit(consistency_cutoff=0.8)
+
+reports = Path("reports")
+reports.mkdir(parents=True, exist_ok=True)
+
+generate_markdown_report(result, path="reports/qca_result.md")
+to_latex_table(result, table="solutions", path="reports/solutions.tex")
+
+metadata = collect_reproducibility_metadata(result, extra={"dataset": "study-1"})
+ExperimentLogger("reports/experiments.jsonl").log(result, name="baseline")
+
+summary = jupyter_summary(result)
+plot_configuration_chart(result)
+```
+
+These helpers keep publication-oriented exports, notebook inspection, and run metadata close to the analysis object.
+
+---
+
+## Machine-Learning-Enhanced QCA Workflow
+
+The optional `qca.mlqca` package implements a Python-native workflow inspired
+by the published mlQCA protocol. XGBoost is used to rank candidate conditions
+and extract split thresholds; calibration, model search, QCA evaluation,
+reporting, and stability analysis are performed by PyQCA.
+
+Install the optional dependencies:
+
+```bash
+pip install -e ".[mlqca]"
+```
+
+The `mlqca-explain` extra additionally installs SHAP for external exploratory
+work. PyQCA's built-in importance table uses XGBoost prediction contributions
+and does not require the standalone SHAP package.
+
+### XGBoost, Calibration, and QCA Search
+
+```python
+import numpy as np
+import pandas as pd
+
+from qca import (
+    MLQCAConfig,
+    fit_xgboost_predictor,
+    search_csqca_models,
+    validate_mlqca_input,
+)
+
+rng = np.random.default_rng(201)
+raw_df = pd.DataFrame(
+    {
+        "policy": rng.normal(size=80),
+        "capacity": rng.normal(size=80),
+        "support": rng.normal(size=80),
+    }
+)
+raw_df["Y"] = (
+    raw_df["policy"] + 0.5 * raw_df["capacity"] > 0
+).astype(int)
+
+validated = validate_mlqca_input(raw_df, outcome="Y")
+config = MLQCAConfig(
+    mode="radical",
+    top_k=3,
+    model_size=2,
+    random_state=201,
+    model_params={
+        "n_estimators": 100,
+        "max_depth": 3,
+        "learning_rate": 0.2,
+    },
+)
+
+predictor = fit_xgboost_predictor(validated, config)
+result = search_csqca_models(validated, predictor, config)
+
+print(predictor.feature_importance)
+print(predictor.cutoff_candidates)
+print(result.pareto_models)
+print(result.best_qca_result)
+```
+
+`mode="radical"` evaluates combinations from the top-ranked conditions.
+`mode="conservative"` requires theory-driven constraints through required or
+excluded conditions, or explicit `conservative_models`.
+
+Mixed crisp, fuzzy, and multi-value workflows can be connected to `MixedQCA`
+with `fit_mixedqca_from_predictor()`. Fuzzy anchor proposals can be evaluated
+with `run_anchor_sensitivity()`.
+
+### Cross-Validation and Bootstrap Stability
+
+PyQCA provides stratified cross-validation and stratified bootstrap analysis.
+Cross-validation evaluates each model on its held-out fold. Bootstrap uses
+out-of-bag cases when both outcome classes are available.
+
+```python
+from pathlib import Path
+
+from qca import bootstrap_mlqca, cross_validate_mlqca
+
+cv_result = cross_validate_mlqca(
+    validated,
+    config,
+    n_splits=5,
+    top_k=3,
+)
+bootstrap_result = bootstrap_mlqca(
+    validated,
+    config,
+    n_bootstrap=100,
+    top_k=3,
+)
+
+print(cv_result.run_summary)
+print(cv_result.feature_stability)
+print(bootstrap_result.cutoff_stability)
+
+Path("reports").mkdir(parents=True, exist_ok=True)
+cv_result.to_markdown("reports/mlqca_cv.md")
+```
+
+The stability tables report top-condition selection rates, feature-use rates,
+rank variation, contribution variation, and rounded cutoff-selection rates.
+Use a fixed `random_state` for reproducible resampling.
+
+### Published Example Reproduction
+
+The test suite includes a mechanically converted copy of the public
+`voteData` fixture from the mlQCA repository. With seed `201` and a
+representative parameter setting from the published search space, the
+reproduction test:
+
+* fits all 427 published cases;
+* reproduces training accuracy and ROC AUC of `1.0`;
+* recovers at least five of the six conditions highlighted by the tutorial
+  within PyQCA's top ten conditions;
+* confirms the expected 210 four-condition combinations from ten candidates.
+
+This is a protocol-level reproduction test, not a claim that Python XGBoost
+must produce byte-identical trees or rankings to the R/caret workflow.
+Features near the top-ten boundary can vary across XGBoost and Python runtime
+versions. Fixture provenance is documented in `tests/data/README.md` and
+`THIRD_PARTY_NOTICES.md`.
 
 ---
 
@@ -243,43 +601,110 @@ This feature is intended to extend threshold-sweep analysis beyond crisp-set dic
 
 ```text
 qca
+├── __init__.py
+├── _constants.py
+├── _types.py
+├── _version.py
+│
 ├── calibration
+│   ├── __init__.py
+│   ├── _validators.py
 │   ├── crisp.py
-│   ├── fuzzy.py
-│   └── multivalue.py
+│   ├── logistic.py
+│   └── piecewise.py
+│
+├── core
+│   ├── __init__.py
+│   ├── conditions.py
+│   ├── literals.py
+│   └── results.py
 │
 ├── engines
+│   ├── __init__.py
+│   ├── _helpers.py
+│   ├── base.py
 │   ├── csqca.py
-│   ├── mvqca.py
 │   ├── fsqca.py
+│   ├── mvqca.py
 │   └── mixed.py
 │
 ├── minimizers
-│   ├── standard.py
+│   ├── __init__.py
+│   ├── algorithms.py
+│   ├── backends.py
+│   ├── benchmark.py
+│   ├── engine.py
+│   ├── implicant.py
 │   ├── qmc.py
+│   ├── remainder.py
 │   ├── set_cover.py
-│   └── greedy.py
+│   └── standard.py
 │
-├── sweep
-│   ├── outcome.py
-│   ├── condition.py
-│   ├── grid.py
-│   ├── dual.py
-│   └── fuzzy_anchor.py
+├── mlqca
+│   ├── __init__.py
+│   ├── _optional.py
+│   ├── backend.py
+│   ├── calibration.py
+│   ├── config.py
+│   ├── csqca.py
+│   ├── cutoffs.py
+│   ├── fuzzy.py
+│   ├── importance.py
+│   ├── mixed.py
+│   ├── reporting.py
+│   ├── reproducibility.py
+│   ├── results.py
+│   ├── schema.py
+│   ├── search.py
+│   ├── stability.py
+│   ├── validation.py
+│   ├── viz.py
+│   └── xgboost.py
+│
+├── reporting
+│   ├── __init__.py
+│   ├── _formatters.py
+│   ├── export.py
+│   ├── jupyter.py
+│   ├── report.py
+│   └── reproducibility.py
 │
 ├── results
-│   ├── solution.py
-│   ├── truth_table.py
-│   ├── sweep_result.py
-│   └── report.py
+│   ├── __init__.py
+│   └── solution.py
+│
+├── sweep
+│   ├── __init__.py
+│   ├── anchors.py
+│   └── threshold.py
 │
 └── viz
-    ├── heatmap.py
-    ├── trajectory.py
-    └── configuration_chart.py
+    ├── __init__.py
+    ├── _helpers.py
+    ├── bar_plots.py
+    ├── configuration_chart.py
+    ├── coverage.py
+    ├── dashboard.py
+    ├── distribution.py
+    ├── truth_table.py
+    └── xy_plot.py
 ```
 
 ---
+
+Current engine architecture:
+
+* `QCAEngineBase` holds the shared validation, truth-table, minimization, and
+  result-building core.
+* `CSQCA`, `FSQCA`, and `MVQCA` are first-class engines in their own modules:
+  `qca.engines.csqca`, `qca.engines.fsqca`, and `qca.engines.mvqca`.
+* `MixedQCA` is a high-level facade over the same shared core for workflows
+  combining crisp, fuzzy, and multi-value conditions.
+* `qca.core` owns the shared condition schema, literal objects, and result
+  dataclasses; engine classes are exposed only from `qca.engines` and the
+  package-level API.
+* Private modules prefixed with `_` contain shared implementation details and
+  are not part of the stable public API.
 
 ## Design Principles
 
@@ -306,9 +731,16 @@ PyQCA should expose intermediate objects such as:
 * minimized solutions;
 * consistency and coverage scores;
 * case-level coverage;
-* threshold-sweep results.
+* threshold-sweep results;
+* mlQCA feature-importance and split-threshold tables;
+* calibration and anchor proposals;
+* candidate-model rankings and Pareto frontiers;
+* cross-validation and bootstrap stability tables.
 
-QCA should not behave like a black box.
+QCA and mlQCA should not behave like black boxes. Predictive evidence,
+calibration choices, condition combinations, failed model evaluations, and
+resampling stability remain inspectable instead of being hidden behind a
+single selected solution.
 
 ---
 
@@ -336,6 +768,20 @@ PyQCA’s sweep layer is designed to help researchers examine how results change
 
 ---
 
+### 6. Machine learning as evidence, not authority
+
+PyQCA treats machine learning as an empirical aid for condition screening,
+calibration proposals, and model-space exploration. Predictive importance does
+not replace theoretical knowledge, causal interpretation, or QCA assumptions.
+
+The `radical` mlQCA mode explores combinations from the ranked condition set.
+The `conservative` mode requires theory-driven constraints. Pareto evaluation,
+published-example reproduction, and resampling stability are exposed so that
+researchers can assess how strongly a proposed configuration depends on one
+model fit or one calibration choice.
+
+---
+
 ## Installation
 
 PyQCA is not yet published on PyPI.
@@ -343,9 +789,17 @@ PyQCA is not yet published on PyPI.
 For development installation:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/pyqca.git
+git clone https://github.com/t-yamsaki/PyQCA.git
 cd pyqca
 pip install -e .
+```
+
+Install optional feature groups as needed:
+
+```bash
+pip install -e ".[viz]"
+pip install -e ".[mlqca]"
+pip install -e ".[mlqca-explain]"
 ```
 
 Planned PyPI installation:
@@ -362,10 +816,19 @@ pip install pyqca
 import pandas as pd
 from qca import MixedQCA
 
-df = pd.read_csv("data.csv")
+df = pd.DataFrame(
+    {
+        "case": [f"c{i}" for i in range(1, 9)],
+        "A": [1, 1, 1, 1, 0, 0, 0, 0],
+        "B": ["high", "high", "low", "low", "high", "high", "low", "low"],
+        "C": [0.9, 0.8, 0.7, 0.6, 0.4, 0.3, 0.2, 0.1],
+        "Y": [0.95, 0.85, 0.80, 0.70, 0.40, 0.30, 0.20, 0.10],
+    }
+)
 
 model = MixedQCA(
     data=df,
+    case_id="case",
     outcome="Y",
     conditions=["A", "B", "C"],
     condition_types={
@@ -393,10 +856,16 @@ PyQCA result objects are designed to be inspectable and exportable.
 ```python
 result.truth_table
 result.solutions
+result.formula
+result.formulas
 result.consistency
 result.coverage
 result.case_coverage
+result.condition_schema
 result.to_dataframe()
+result.to_formula()
+result.to_formulas()
+result.export_formula("solution.txt")
 result.to_markdown()
 ```
 
@@ -415,81 +884,24 @@ sweep_result.plot_trajectory()
 
 ---
 
-## Roadmap
-
-### v0.1 — Core QCA
-
-* Data validation
-* Crisp-set calibration
-* Fuzzy-set calibration
-* Multi-value condition handling
-* Truth table construction
-* Necessity analysis
-* Sufficiency analysis
-* Consistency and coverage metrics
-* Basic mvQCA
-* Basic fsQCA
-
-### v0.2 — MixedQCA
-
-* Unified mixed-type condition schema
-* `MixedQCA` high-level API
-* Mixed crisp / multi-value / fuzzy workflows
-* Unified result object
-* Markdown export
-* Formula export
-
-### v0.3 — Minimization Backends
-
-* Standard Boolean minimizer
-* Quine-McCluskey-style minimizer
-* Set-covering-based minimizer
-* Greedy set-cover minimizer
-* Exact set-cover backend
-* Benchmarking utilities
-
-### v0.4 — ThresholdSweep
-
-* Outcome threshold sweep
-* Single-condition threshold sweep
-* Multi-condition threshold grid search
-* Dual outcome-condition threshold sweep
-* Sweep result summaries
-* Heatmap and trajectory visualization
-
-### v0.5 — fsQCA Anchor Sensitivity
-
-* Full membership anchor sweep
-* Crossover anchor sweep
-* Full non-membership anchor sweep
-* Multi-anchor grid analysis
-* Calibration stability reports
-
-### v0.6 — Reporting and Reproducibility
-
-* Automated Markdown reports
-* LaTeX table export
-* Configuration charts
-* Reproducibility metadata
-* Experiment logging
-* Jupyter-friendly summaries
-
----
-
 ## Relationship to Existing QCA Tools
 
 PyQCA is inspired by the broader QCA software ecosystem, especially mature R-based workflows.
 
 Its intended position is:
 
-| Tool / Approach         | Main Role                                                                                                             |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| R `QCA` package         | Established QCA workflow in R                                                                                         |
-| scpQCA-style algorithms | Set-covering-based alternative minimization                                                                           |
-| ThS-QCA framework       | Threshold-sweep sensitivity analysis                                                                                  |
-| PyQCA                   | Python-native QCA platform integrating mvQCA, fsQCA, mixed-type analysis, minimization backends, and threshold sweeps |
+| Tool / Approach         | Main Role                                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| R `QCA` package         | Established QCA workflow in R                                                                                                          |
+| scpQCA-style algorithms | Set-covering-based alternative minimization                                                                                            |
+| ThS-QCA framework       | Threshold-sweep sensitivity analysis                                                                                                   |
+| R `mlQCA` package       | Published machine-learning-enhanced QCA protocol using predictive condition selection and calibration evidence                        |
+| PyQCA                   | Python-native QCA platform integrating core and mixed QCA, minimization, sensitivity analysis, and an independent `qca.mlqca` workflow |
 
-PyQCA aims to complement existing tools, not replace them.
+PyQCA aims to complement existing tools, not replace them. Its `qca.mlqca`
+package is methodologically informed by Huang's mlQCA work but independently
+implemented with PyQCA data models, engines, result objects, reporting, and
+stability analysis. See `THIRD_PARTY_NOTICES.md` and `PROVENANCE_AUDIT.md`.
 
 ---
 
@@ -512,12 +924,27 @@ PyQCA is designed for research workflows such as:
 ## Example Research Workflow
 
 ```python
-from qca import MixedQCA
-from qca.sweep import ThresholdSweep
+from pathlib import Path
 
-# 1. Define model
+import pandas as pd
+
+from qca import MixedQCA, ThresholdSweep
+
+# 1. Analyze calibrated mixed-type conditions.
+mixed_df = pd.DataFrame(
+    {
+        "case": [f"c{i}" for i in range(1, 9)],
+        "Strategy": ["focus", "focus", "broad", "broad"] * 2,
+        "Budget": [0.9, 0.8, 0.7, 0.6, 0.4, 0.3, 0.2, 0.1],
+        "CreativeQuality": [0.8, 0.9, 0.6, 0.7, 0.3, 0.4, 0.1, 0.2],
+        "MarketFit": [1, 1, 1, 0, 1, 0, 0, 0],
+        "HighPerformance": [0.95, 0.90, 0.80, 0.65, 0.45, 0.35, 0.20, 0.10],
+    }
+)
+
 model = MixedQCA(
-    data=df,
+    data=mixed_df,
+    case_id="case",
     outcome="HighPerformance",
     conditions=["Strategy", "Budget", "CreativeQuality", "MarketFit"],
     condition_types={
@@ -543,14 +970,39 @@ scp_result = model.fit(
 )
 
 # 4. Run threshold sweep
-sweep = ThresholdSweep(model)
+raw_df = pd.DataFrame(
+    {
+        "case": [f"c{i}" for i in range(1, 13)],
+        "Strategy": [9, 8, 8, 7, 7, 6, 6, 5, 5, 4, 3, 2],
+        "Budget": [8, 8, 7, 7, 6, 6, 5, 5, 4, 4, 3, 2],
+        "CreativeQuality": [9, 7, 8, 6, 7, 5, 6, 4, 5, 3, 4, 2],
+        "MarketFit": [8, 9, 7, 8, 6, 7, 5, 6, 4, 5, 3, 2],
+        "HighPerformance": [10, 9, 9, 8, 8, 7, 7, 6, 5, 4, 3, 2],
+    }
+)
+
+sweep = ThresholdSweep(
+    raw_df,
+    outcome="HighPerformance",
+    conditions=["Strategy", "Budget", "CreativeQuality", "MarketFit"],
+    case_id="case",
+)
 
 sweep_result = sweep.outcome(
     thresholds=[6, 7, 8, 9],
+    condition_thresholds={
+        "Strategy": 7,
+        "Budget": 7,
+        "CreativeQuality": 7,
+        "MarketFit": 7,
+    },
+    incl_cut=0.8,
+    n_cut=1,
     minimizer="set_cover",
 )
 
 # 5. Export report
+Path("reports").mkdir(parents=True, exist_ok=True)
 sweep_result.to_markdown("reports/threshold_sweep.md")
 ```
 
@@ -558,16 +1010,17 @@ sweep_result.to_markdown("reports/threshold_sweep.md")
 
 ## Citation
 
-If you use PyQCA in academic work, please cite this repository.
+If you use PyQCA in academic work, please cite the software using
+[`CITATION.cff`](CITATION.cff).
 
 Suggested citation:
 
 ```bibtex
 @software{pyqca,
-  title = {PyQCA: A Python-native toolkit for mvQCA, fsQCA, mixed-type QCA, and threshold-sweep analysis},
-  author = {Your Name},
+  title = {PyQCA: A Python-native toolkit for core, mixed, threshold-sweep, and machine-learning-enhanced QCA},
+  author = {taishi-yamasaki},
   year = {2026},
-  url = {https://github.com/YOUR_USERNAME/pyqca}
+  url = {https://github.com/t-yamsaki/PyQCA}
 }
 ```
 
@@ -582,19 +1035,42 @@ PyQCA’s threshold-sweep layer is inspired by the ThS-QCA framework:
 }
 ```
 
+When using `qca.mlqca`, please also cite the methodological article:
+
+```bibtex
+@article{huang2025mlqca,
+  title = {Towards machine-learning enhanced QCA: optimizing coverage and empirical significance},
+  author = {Huang, Qin},
+  year = {2025},
+  journal = {Quality \& Quantity},
+  volume = {59},
+  pages = {4259--4281},
+  doi = {10.1007/s11135-025-02146-2}
+}
+```
+
+The PyQCA citation identifies the software implementation. The Huang citation
+identifies the mlQCA methodology that informed the optional workflow.
+
 ---
 
 ## License
 
 This project is released under the MIT License.
 
-See `LICENSE` for details.
+See [`LICENSE`](LICENSE) for the project license,
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for attribution, and
+[`PROVENANCE_AUDIT.md`](PROVENANCE_AUDIT.md) for the source-origin review.
 
 ---
 
 ## Contributing
 
 Contributions are welcome.
+
+Contributions are accepted under the project's MIT License. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for development, attribution, and
+provenance requirements.
 
 Potential contribution areas:
 
@@ -603,8 +1079,15 @@ Potential contribution areas:
 * benchmarking against R QCA outputs;
 * fsQCA calibration utilities;
 * threshold-sweep visualization;
+* mlQCA backends, calibration strategies, and stability diagnostics;
+* reproduction studies comparing PyQCA with published mlQCA examples;
 * documentation and tutorials;
 * examples from applied research.
+
+Contributions to `qca.mlqca` must document methodological sources, dataset
+provenance, dependency licenses, and whether code was independently written or
+adapted. Do not translate or copy GPL-licensed R source into the MIT-licensed
+codebase. Reproduction fixtures must have redistribution-compatible licenses.
 
 Please open an issue before submitting a large pull request.
 
@@ -614,7 +1097,9 @@ Please open an issue before submitting a large pull request.
 
 PyQCA is currently experimental.
 
-The initial development priority is methodological correctness and reproducibility rather than API stability. Breaking changes may occur before v1.0.
+The current development priority is methodological correctness,
+reproducibility, and a clear public API. Breaking changes may occur before
+v1.0.
 
 Recommended use for now:
 
@@ -624,4 +1109,11 @@ Recommended use for now:
 * educational examples;
 * methodological experimentation.
 
-Not yet recommended for production or high-stakes applied research without manual validation.
+For publications and high-stakes applied research, validate important results
+against established QCA software, methodological expectations, and the source
+data.
+
+Future work is tracked through
+[GitHub Issues](https://github.com/t-yamsaki/PyQCA/issues). Published versions
+and release notes will be available through
+[GitHub Releases](https://github.com/t-yamsaki/PyQCA/releases).
