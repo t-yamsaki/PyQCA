@@ -1,0 +1,410 @@
+# PyQCA
+
+**PyQCA** は、Python ネイティブな **Qualitative Comparative Analysis (QCA; 質的比較分析)** のための実験的ライブラリです。
+
+csQCA、mvQCA、fsQCA、混合型 QCA、閾値感度分析、キャリブレーション感度分析、レポート出力を Python のデータ分析ワークフロー内で扱うことを目的としています。
+
+> ステータス: experimental / active development
+
+---
+
+## 特徴
+
+* **Core QCA**: `CSQCA`, `MVQCA`, `FSQCA`
+* **MixedQCA**: crisp / multi-value / fuzzy 条件を統一スキーマで扱う高レベルインターフェース
+* **Minimization backends**: `standard`, `qmc`, `set_cover`, `greedy_set_cover`, `exact_set_cover`
+* **Calibration**: crisp calibration, piecewise fuzzy calibration, logistic fuzzy calibration
+* **ThresholdSweep**: ThSQCA に準拠した outcome / condition / grid / dual threshold sweep
+* **fsQCA Anchor Sensitivity**: full membership, crossover, full non-membership anchor sweep
+* **Reporting**: Markdown, LaTeX, reproducibility metadata, experiment logging, Jupyter-friendly summary
+* **Visualization**: truth table, XY plot, coverage, configuration chart などの optional Matplotlib 可視化
+
+---
+
+## インストール
+
+開発版をローカルで利用する場合:
+
+```bash
+git clone https://github.com/your-org/pyqca.git
+cd pyqca
+pip install -e .
+```
+
+可視化機能も使う場合:
+
+```bash
+pip install -e ".[viz]"
+```
+
+将来的な PyPI 公開後:
+
+```bash
+pip install pyqca
+```
+
+---
+
+## クイックスタート
+
+### csQCA
+
+```python
+import pandas as pd
+from qca import CSQCA
+
+df = pd.DataFrame({
+    "case": ["c1", "c2", "c3", "c4"],
+    "A": [1, 1, 0, 0],
+    "B": [1, 0, 1, 0],
+    "Y": [1, 1, 0, 0],
+})
+
+model = CSQCA(
+    data=df,
+    case_id="case",
+    outcome="Y",
+    conditions=["A", "B"],
+)
+
+result = model.fit(consistency_cutoff=0.8)
+
+print(result.truth_table)
+print(result.solutions)
+print(result.formula)
+```
+
+### fsQCA
+
+```python
+import pandas as pd
+
+from qca import FSQCA, calibrate_piecewise
+
+fs_df = pd.DataFrame(
+    {
+        "case": [f"c{i}" for i in range(1, 9)],
+        "raw_score": [1, 2, 3, 4, 6, 7, 8, 9],
+        "B": [0, 0, 0, 1, 0, 1, 1, 1],
+        "Y": [0.05, 0.10, 0.20, 0.45, 0.40, 0.75, 0.85, 0.95],
+    }
+)
+
+calibrated = calibrate_piecewise(
+    fs_df,
+    value_col="raw_score",
+    out_col="A",
+    min_nonnull=5,
+).df
+
+model = FSQCA(
+    data=calibrated,
+    case_id="case",
+    outcome="Y",
+    conditions=["A", "B"],
+    condition_types={"A": "fuzzy", "B": "crisp"},
+)
+
+result = model.fit(consistency_cutoff=0.8, coverage_cutoff=0.1)
+```
+
+### MixedQCA
+
+```python
+import pandas as pd
+
+from qca import MixedQCA
+
+mixed_df = pd.DataFrame(
+    {
+        "case": [f"c{i}" for i in range(1, 9)],
+        "policy": [1, 1, 1, 0, 1, 0, 0, 0],
+        "region": ["north", "south", "north", "south"] * 2,
+        "capacity": [0.9, 0.8, 0.7, 0.6, 0.4, 0.3, 0.2, 0.1],
+        "Y": [0.95, 0.85, 0.80, 0.65, 0.45, 0.30, 0.20, 0.10],
+    }
+)
+
+model = MixedQCA(
+    data=mixed_df,
+    case_id="case",
+    outcome="Y",
+    conditions=["policy", "region", "capacity"],
+    condition_types={
+        "policy": "crisp",
+        "region": "multi",
+        "capacity": "fuzzy",
+    },
+)
+
+result = model.fit(minimizer="set_cover")
+```
+
+統一スキーマからも作成できます:
+
+```python
+schema = [
+    {"name": "policy", "type": "crisp", "domain": [0, 1], "calibrated": True},
+    {"name": "region", "type": "multi-value", "domain": ["north", "south"]},
+    {"name": "capacity", "type": "fuzzy", "domain": [0, 1], "calibrated": True},
+]
+
+model = MixedQCA.from_schema(
+    data=mixed_df,
+    outcome="Y",
+    schema=schema,
+    case_id="case",
+)
+```
+
+---
+
+## Minimization Backends
+
+`fit(minimizer=...)` で最小化バックエンドを切り替えられます。
+
+```python
+result = model.fit(minimizer="standard")
+result = model.fit(minimizer="qmc")
+result = model.fit(minimizer="set_cover")
+result = model.fit(minimizer="greedy_set_cover")
+result = model.fit(minimizer="exact_set_cover")
+```
+
+同じモデルでバックエンドを比較する場合:
+
+```python
+from qca import benchmark_minimizers
+
+bench = benchmark_minimizers(
+    model,
+    minimizers=["standard", "qmc", "greedy_set_cover", "exact_set_cover"],
+    outcome_threshold=0.75,
+    consistency_cutoff=0.75,
+)
+
+print(bench.summary())
+```
+
+---
+
+## ThresholdSweep
+
+`ThresholdSweep` は ThSQCA のアルゴリズムに準拠し、raw variable を `x >= threshold` で二値化しながら QCA を反復実行します。
+
+```python
+import pandas as pd
+
+from qca import ThresholdSweep
+
+sweep_df = pd.DataFrame(
+    {
+        "case": [f"c{i}" for i in range(1, 13)],
+        "A": [9, 8, 8, 7, 7, 6, 6, 5, 5, 4, 3, 2],
+        "B": [8, 8, 7, 7, 6, 6, 5, 5, 4, 4, 3, 2],
+        "C": [9, 7, 8, 6, 7, 5, 6, 4, 5, 3, 4, 2],
+        "Y": [10, 9, 9, 8, 8, 7, 7, 6, 5, 4, 3, 2],
+    }
+)
+
+sweep = ThresholdSweep(
+    sweep_df,
+    outcome="Y",
+    conditions=["A", "B", "C"],
+    case_id="case",
+)
+
+res = sweep.outcome(
+    thresholds=[5, 6, 7, 8],
+    condition_thresholds={"A": 7, "B": 7, "C": 7},
+    incl_cut=0.8,
+    n_cut=1,
+)
+
+print(res.summary_df)
+print(res.stability)
+```
+
+利用可能な sweep:
+
+* `sweep.outcome()`
+* `sweep.condition()`
+* `sweep.multi_condition()`
+* `sweep.dual()`
+* `sweep.fuzzy_anchors()`
+
+---
+
+## fsQCA Anchor Sensitivity
+
+```python
+import pandas as pd
+
+from qca import AnchorSensitivity
+
+anchor_df = pd.DataFrame(
+    {
+        "case": [f"c{i}" for i in range(1, 11)],
+        "Budget": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        "Capacity": [0, 0, 0, 1, 1, 0, 1, 1, 1, 1],
+        "Y": [0.05, 0.10, 0.20, 0.40, 0.55, 0.50, 0.70, 0.80, 0.90, 0.95],
+    }
+)
+
+anchors = AnchorSensitivity(
+    anchor_df,
+    outcome="Y",
+    conditions=["Budget", "Capacity"],
+    case_id="case",
+)
+
+res = anchors.grid(
+    "Budget",
+    {
+        "full_out": [1, 2],
+        "crossover": [4, 5],
+        "full_in": [8, 9],
+    },
+    incl_cut=0.8,
+)
+
+print(res.summary_df)
+print(res.stability)
+```
+
+単一 anchor 系だけを sweep する場合:
+
+```python
+res = anchors.crossover(
+    "Budget",
+    values=[4, 5, 6],
+    full_out=1,
+    full_in=9,
+)
+```
+
+---
+
+## レポートと再現性
+
+```python
+from pathlib import Path
+
+from qca import (
+    ExperimentLogger,
+    collect_reproducibility_metadata,
+    generate_markdown_report,
+    jupyter_summary,
+    to_latex_table,
+)
+
+result = model.fit(consistency_cutoff=0.8)
+
+Path("reports").mkdir(parents=True, exist_ok=True)
+
+generate_markdown_report(result, path="reports/qca_result.md")
+to_latex_table(result, table="solutions", path="reports/solutions.tex")
+
+metadata = collect_reproducibility_metadata(result)
+ExperimentLogger("reports/experiments.jsonl").log(result, name="baseline")
+
+summary = jupyter_summary(result)
+```
+
+`QCAFitResult` から直接呼ぶこともできます。
+
+```python
+result.to_markdown_report("reports/qca_result.md")
+result.to_latex("reports/solutions.tex", table="solutions")
+result.to_jupyter_summary()
+```
+
+---
+
+## 可視化
+
+Matplotlib は optional dependency です。
+
+```python
+from qca.viz import (
+    plot_configuration_chart,
+    plot_truth_table,
+    plot_xy,
+)
+
+plot_truth_table(model)
+plot_configuration_chart(result)
+plot_xy(model, "policy")
+```
+
+---
+
+## アーキテクチャ概要
+
+PyQCA は、`QCAEngineBase` を共通基底として、`CSQCA`, `MVQCA`, `FSQCA` を first-class engine として実装しています。
+
+`MixedQCA` は、それらと同じ共通コアを使う高レベル facade です。crisp / multi-value / fuzzy 条件を同じ分析ワークフローで扱うための入口として設計されています。
+
+```text
+qca
+├── _constants.py / _types.py / _version.py
+├── calibration
+│   ├── _validators.py
+│   ├── crisp.py
+│   ├── logistic.py
+│   └── piecewise.py
+├── core
+│   ├── conditions.py
+│   ├── literals.py
+│   └── results.py
+├── engines
+│   ├── _helpers.py
+│   ├── base.py
+│   ├── csqca.py
+│   ├── fsqca.py
+│   ├── mvqca.py
+│   └── mixed.py
+├── minimizers
+│   ├── algorithms.py / engine.py / implicant.py / remainder.py
+│   ├── backends.py / benchmark.py
+│   ├── standard.py / qmc.py
+│   └── set_cover.py
+├── reporting
+│   ├── _formatters.py
+│   ├── export.py / jupyter.py / report.py
+│   └── reproducibility.py
+├── results
+│   └── solution.py
+├── sweep
+│   ├── anchors.py
+│   └── threshold.py
+└── viz
+    ├── _helpers.py
+    ├── bar_plots.py / configuration_chart.py / coverage.py
+    └── dashboard.py / distribution.py / truth_table.py / xy_plot.py
+```
+
+`qca.core` は条件スキーマ、リテラル、結果dataclassを管理します。engineクラスは `qca.engines` とパッケージトップレベルから公開されます。
+
+先頭が `_` のモジュールはパッケージ内部の共通実装であり、安定した公開APIには含まれません。
+
+---
+
+## 開発ステータス
+
+PyQCA は現在 experimental です。研究ワークフロー、教育、プロトタイピング、手法検証を主な対象としています。
+
+高リスクな実務判断や査読論文での本格利用では、出力結果を既存 QCA ソフトウェアや手計算で検証してください。
+
+---
+
+## ライセンス
+
+MIT License
+
+プロジェクトのライセンスは [`LICENSE`](LICENSE)、第三者への帰属は
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)、コード由来監査は
+[`PROVENANCE_AUDIT.md`](PROVENANCE_AUDIT.md) を参照してください。
+
+研究利用時の引用情報は [`CITATION.cff`](CITATION.cff)、コントリビューションの
+ライセンス条件は [`CONTRIBUTING.md`](CONTRIBUTING.md) に記載しています。

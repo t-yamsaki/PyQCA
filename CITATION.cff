@@ -1,0 +1,48 @@
+cff-version: 1.2.0
+message: "If you use PyQCA in research, please cite the software."
+title: "PyQCA: A Python-native toolkit for Qualitative Comparative Analysis"
+type: software
+authors:
+  - name: "taishi-yamasaki"
+version: 0.2.0
+date-released: 2026-06-19
+repository-code: "https://github.com/t-yamsaki/PyQCA"
+url: "https://github.com/t-yamsaki/PyQCA"
+license: MIT
+keywords:
+  - qualitative comparative analysis
+  - QCA
+  - csQCA
+  - mvQCA
+  - fsQCA
+  - threshold sweep
+references:
+  - type: article
+    authors:
+      - family-names: Toyoda
+        given-names: Yuki
+    title: "TSQCA: Threshold-Sweep Qualitative Comparative Analysis in R"
+    year: 2026
+    collection-title: arXiv
+    identifiers:
+      - type: other
+        value: "arXiv:2601.11229"
+    url: "https://arxiv.org/abs/2601.11229"
+  - type: book
+    authors:
+      - family-names: Dusa
+        given-names: Adrian
+    title: "QCA with R: A Comprehensive Resource"
+    publisher:
+      name: Springer
+    year: 2019
+    doi: "10.1007/978-3-319-75668-4"
+  - type: book
+    authors:
+      - family-names: Ragin
+        given-names: Charles C.
+    title: "Redesigning Social Inquiry: Fuzzy Sets and Beyond"
+    publisher:
+      name: University of Chicago Press
+    year: 2008
+    doi: "10.7208/chicago/9780226702797.001.0001"
