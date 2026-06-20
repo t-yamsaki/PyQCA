@@ -4,7 +4,11 @@
 
 [日本語 README](README.ja.md)
 
-It provides a unified framework for running **crisp-set QCA (csQCA)**, **multi-value QCA (mvQCA)**, **fuzzy-set QCA (fsQCA)**, and mixed-type configurational analysis in Python. PyQCA also supports pluggable minimization backends, including standard Boolean minimization and set-covering-based minimization, as well as threshold-sweep analysis inspired by the ThS-QCA framework.
+It provides a unified framework for running **crisp-set QCA (csQCA)**,
+**multi-value QCA (mvQCA)**, **fuzzy-set QCA (fsQCA)**, mixed-type
+configurational analysis, and **machine-learning-enhanced QCA (mlQCA)** in
+Python. PyQCA also supports pluggable minimization backends, threshold and
+calibration sensitivity analysis, reporting, and reproducibility tools.
 
 > Status: experimental / under active development
 
@@ -21,6 +25,10 @@ PyQCA aims to provide a Python-native QCA foundation for researchers and practit
 * switch between different minimization algorithms;
 * inspect consistency, coverage, truth tables, and solution formulas;
 * conduct threshold-sensitivity analysis systematically;
+* use XGBoost evidence to propose conditions, calibration thresholds, and QCA
+  model combinations;
+* evaluate mlQCA condition and cutoff stability with cross-validation and
+  bootstrap resampling;
 * integrate QCA workflows with Python data science tools such as pandas, NumPy, scikit-learn, Jupyter, and visualization libraries.
 
 PyQCA is not intended to be only a thin wrapper around existing R packages. The goal is to provide a Python-native architecture for standard QCA workflows and future methodological extensions.
@@ -260,6 +268,36 @@ Available sweep modes:
 
 ---
 
+### 7. Machine-Learning-Enhanced QCA
+
+The optional `qca.mlqca` workflow connects predictive modeling to PyQCA's
+native QCA engines. It uses XGBoost to rank candidate conditions and extract
+split thresholds, then applies PyQCA calibration, csQCA or MixedQCA analysis,
+radical or theory-constrained model search, Pareto evaluation, and
+cross-validation or bootstrap stability analysis.
+
+```python
+from qca import (
+    MLQCAConfig,
+    fit_xgboost_predictor,
+    search_csqca_models,
+    validate_mlqca_input,
+)
+
+# raw_df contains numeric candidate conditions and a binary outcome Y.
+validated = validate_mlqca_input(raw_df, outcome="Y")
+config = MLQCAConfig(mode="radical", top_k=10, model_size=4)
+predictor = fit_xgboost_predictor(validated, config)
+result = search_csqca_models(validated, predictor, config)
+```
+
+XGBoost and scikit-learn are optional dependencies. See
+[Machine-Learning-Enhanced QCA Workflow](#machine-learning-enhanced-qca-workflow) for the
+complete workflow, mixed-type integration, stability analysis, and published
+example reproduction.
+
+---
+
 ## Example: Outcome Threshold Sweep
 
 ```python
@@ -409,6 +447,133 @@ These helpers keep publication-oriented exports, notebook inspection, and run me
 
 ---
 
+## Machine-Learning-Enhanced QCA Workflow
+
+The optional `qca.mlqca` package implements a Python-native workflow inspired
+by the published mlQCA protocol. XGBoost is used to rank candidate conditions
+and extract split thresholds; calibration, model search, QCA evaluation,
+reporting, and stability analysis are performed by PyQCA.
+
+Install the optional dependencies:
+
+```bash
+pip install -e ".[mlqca]"
+```
+
+The `mlqca-explain` extra additionally installs SHAP for external exploratory
+work. PyQCA's built-in importance table uses XGBoost prediction contributions
+and does not require the standalone SHAP package.
+
+### XGBoost, Calibration, and QCA Search
+
+```python
+import numpy as np
+import pandas as pd
+
+from qca import (
+    MLQCAConfig,
+    fit_xgboost_predictor,
+    search_csqca_models,
+    validate_mlqca_input,
+)
+
+rng = np.random.default_rng(201)
+raw_df = pd.DataFrame(
+    {
+        "policy": rng.normal(size=80),
+        "capacity": rng.normal(size=80),
+        "support": rng.normal(size=80),
+    }
+)
+raw_df["Y"] = (
+    raw_df["policy"] + 0.5 * raw_df["capacity"] > 0
+).astype(int)
+
+validated = validate_mlqca_input(raw_df, outcome="Y")
+config = MLQCAConfig(
+    mode="radical",
+    top_k=3,
+    model_size=2,
+    random_state=201,
+    model_params={
+        "n_estimators": 100,
+        "max_depth": 3,
+        "learning_rate": 0.2,
+    },
+)
+
+predictor = fit_xgboost_predictor(validated, config)
+result = search_csqca_models(validated, predictor, config)
+
+print(predictor.feature_importance)
+print(predictor.cutoff_candidates)
+print(result.pareto_models)
+print(result.best_qca_result)
+```
+
+`mode="radical"` evaluates combinations from the top-ranked conditions.
+`mode="conservative"` requires theory-driven constraints through required or
+excluded conditions, or explicit `conservative_models`.
+
+Mixed crisp, fuzzy, and multi-value workflows can be connected to `MixedQCA`
+with `fit_mixedqca_from_predictor()`. Fuzzy anchor proposals can be evaluated
+with `run_anchor_sensitivity()`.
+
+### Cross-Validation and Bootstrap Stability
+
+P6 provides stratified cross-validation and stratified bootstrap analysis.
+Cross-validation evaluates each model on its held-out fold. Bootstrap uses
+out-of-bag cases when both outcome classes are available.
+
+```python
+from pathlib import Path
+
+from qca import bootstrap_mlqca, cross_validate_mlqca
+
+cv_result = cross_validate_mlqca(
+    validated,
+    config,
+    n_splits=5,
+    top_k=3,
+)
+bootstrap_result = bootstrap_mlqca(
+    validated,
+    config,
+    n_bootstrap=100,
+    top_k=3,
+)
+
+print(cv_result.run_summary)
+print(cv_result.feature_stability)
+print(bootstrap_result.cutoff_stability)
+
+Path("reports").mkdir(parents=True, exist_ok=True)
+cv_result.to_markdown("reports/mlqca_cv.md")
+```
+
+The stability tables report top-condition selection rates, feature-use rates,
+rank variation, contribution variation, and rounded cutoff-selection rates.
+Use a fixed `random_state` for reproducible resampling.
+
+### Published Example Reproduction
+
+The test suite includes a mechanically converted copy of the public
+`voteData` fixture from the mlQCA repository. With seed `201` and a
+representative parameter setting from the published search space, the
+reproduction test:
+
+* fits all 427 published cases;
+* reproduces training accuracy and ROC AUC of `1.0`;
+* places all six conditions highlighted by the tutorial within PyQCA's top
+  ten conditions;
+* confirms the expected 210 four-condition combinations from ten candidates.
+
+This is a protocol-level reproduction test, not a claim that Python XGBoost
+must produce byte-identical trees to the R/caret workflow. Fixture provenance
+is documented in `tests/data/README.md` and `THIRD_PARTY_NOTICES.md`.
+
+---
+
 ## Architecture
 
 ```text
@@ -451,6 +616,27 @@ qca
 │   ├── remainder.py
 │   ├── set_cover.py
 │   └── standard.py
+│
+├── mlqca
+│   ├── __init__.py
+│   ├── _optional.py
+│   ├── backend.py
+│   ├── calibration.py
+│   ├── config.py
+│   ├── csqca.py
+│   ├── cutoffs.py
+│   ├── fuzzy.py
+│   ├── importance.py
+│   ├── mixed.py
+│   ├── reporting.py
+│   ├── reproducibility.py
+│   ├── results.py
+│   ├── schema.py
+│   ├── search.py
+│   ├── stability.py
+│   ├── validation.py
+│   ├── viz.py
+│   └── xgboost.py
 │
 ├── reporting
 │   ├── __init__.py
@@ -522,9 +708,16 @@ PyQCA should expose intermediate objects such as:
 * minimized solutions;
 * consistency and coverage scores;
 * case-level coverage;
-* threshold-sweep results.
+* threshold-sweep results;
+* mlQCA feature-importance and split-threshold tables;
+* calibration and anchor proposals;
+* candidate-model rankings and Pareto frontiers;
+* cross-validation and bootstrap stability tables.
 
-QCA should not behave like a black box.
+QCA and mlQCA should not behave like black boxes. Predictive evidence,
+calibration choices, condition combinations, failed model evaluations, and
+resampling stability remain inspectable instead of being hidden behind a
+single selected solution.
 
 ---
 
@@ -552,6 +745,20 @@ PyQCA’s sweep layer is designed to help researchers examine how results change
 
 ---
 
+### 6. Machine learning as evidence, not authority
+
+PyQCA treats machine learning as an empirical aid for condition screening,
+calibration proposals, and model-space exploration. Predictive importance does
+not replace theoretical knowledge, causal interpretation, or QCA assumptions.
+
+The `radical` mlQCA mode explores combinations from the ranked condition set.
+The `conservative` mode requires theory-driven constraints. Pareto evaluation,
+published-example reproduction, and resampling stability are exposed so that
+researchers can assess how strongly a proposed configuration depends on one
+model fit or one calibration choice.
+
+---
+
 ## Installation
 
 PyQCA is not yet published on PyPI.
@@ -562,6 +769,14 @@ For development installation:
 git clone https://github.com/t-yamsaki/PyQCA.git
 cd pyqca
 pip install -e .
+```
+
+Install optional feature groups as needed:
+
+```bash
+pip install -e ".[viz]"
+pip install -e ".[mlqca]"
+pip install -e ".[mlqca-explain]"
 ```
 
 Planned PyPI installation:
@@ -706,6 +921,17 @@ sweep_result.plot_trajectory()
 * [x] Experiment logging
 * [x] Jupyter-friendly summaries
 
+### mlQCA Integration — P0-P6
+
+* [x] Optional dependencies, configuration, validation, and result contracts
+* [x] XGBoost training, condition importance, and split-threshold extraction
+* [x] Crisp calibration, necessity analysis, and csQCA integration
+* [x] Radical/conservative combination search and Pareto evaluation
+* [x] Fuzzy anchor proposals and anchor-sensitivity integration
+* [x] MixedQCA integration, Markdown reports, visualization, and metadata
+* [x] Published-example reproduction tests
+* [x] Cross-validation and bootstrap stability analysis
+
 ---
 
 ## Relationship to Existing QCA Tools
@@ -714,14 +940,18 @@ PyQCA is inspired by the broader QCA software ecosystem, especially mature R-bas
 
 Its intended position is:
 
-| Tool / Approach         | Main Role                                                                                                             |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| R `QCA` package         | Established QCA workflow in R                                                                                         |
-| scpQCA-style algorithms | Set-covering-based alternative minimization                                                                           |
-| ThS-QCA framework       | Threshold-sweep sensitivity analysis                                                                                  |
-| PyQCA                   | Python-native QCA platform integrating mvQCA, fsQCA, mixed-type analysis, minimization backends, and threshold sweeps |
+| Tool / Approach         | Main Role                                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| R `QCA` package         | Established QCA workflow in R                                                                                                          |
+| scpQCA-style algorithms | Set-covering-based alternative minimization                                                                                            |
+| ThS-QCA framework       | Threshold-sweep sensitivity analysis                                                                                                   |
+| R `mlQCA` package       | Published machine-learning-enhanced QCA protocol using predictive condition selection and calibration evidence                        |
+| PyQCA                   | Python-native QCA platform integrating core and mixed QCA, minimization, sensitivity analysis, and an independent `qca.mlqca` workflow |
 
-PyQCA aims to complement existing tools, not replace them.
+PyQCA aims to complement existing tools, not replace them. Its `qca.mlqca`
+package is methodologically informed by Huang's mlQCA work but independently
+implemented with PyQCA data models, engines, result objects, reporting, and
+stability analysis. See `THIRD_PARTY_NOTICES.md` and `PROVENANCE_AUDIT.md`.
 
 ---
 
@@ -837,7 +1067,7 @@ Suggested citation:
 
 ```bibtex
 @software{pyqca,
-  title = {PyQCA: A Python-native toolkit for mvQCA, fsQCA, mixed-type QCA, and threshold-sweep analysis},
+  title = {PyQCA: A Python-native toolkit for core, mixed, threshold-sweep, and machine-learning-enhanced QCA},
   author = {taishi-yamasaki},
   year = {2026},
   url = {https://github.com/t-yamsaki/PyQCA}
@@ -854,6 +1084,23 @@ PyQCA’s threshold-sweep layer is inspired by the ThS-QCA framework:
   journal = {arXiv preprint arXiv:2601.11229}
 }
 ```
+
+When using `qca.mlqca`, please also cite the methodological article:
+
+```bibtex
+@article{huang2025mlqca,
+  title = {Towards machine-learning enhanced QCA: optimizing coverage and empirical significance},
+  author = {Huang, Qin},
+  year = {2025},
+  journal = {Quality \& Quantity},
+  volume = {59},
+  pages = {4259--4281},
+  doi = {10.1007/s11135-025-02146-2}
+}
+```
+
+The PyQCA citation identifies the software implementation. The Huang citation
+identifies the mlQCA methodology that informed the optional workflow.
 
 ---
 
@@ -882,8 +1129,15 @@ Potential contribution areas:
 * benchmarking against R QCA outputs;
 * fsQCA calibration utilities;
 * threshold-sweep visualization;
+* mlQCA backends, calibration strategies, and stability diagnostics;
+* reproduction studies comparing PyQCA with published mlQCA examples;
 * documentation and tutorials;
 * examples from applied research.
+
+Contributions to `qca.mlqca` must document methodological sources, dataset
+provenance, dependency licenses, and whether code was independently written or
+adapted. Do not translate or copy GPL-licensed R source into the MIT-licensed
+codebase. Reproduction fixtures must have redistribution-compatible licenses.
 
 Please open an issue before submitting a large pull request.
 

@@ -12,6 +12,7 @@ import pandas as pd
 from qca.mlqca.backend import PredictorFitResult
 from qca.mlqca.config import MLQCAConfig
 from qca.mlqca.csqca import fit_csqca_from_predictor
+from qca.mlqca.reproducibility import collect_mlqca_reproducibility
 from qca.mlqca.results import MLQCAResult
 from qca.mlqca.validation import ValidatedMLQCAInput
 from qca.results import QCAFitResult
@@ -222,11 +223,15 @@ def search_csqca_models(
                 "minimize": ["complexity"],
             },
         },
-        metadata={
-            "predictor_backend": predictor.backend,
-            "predictor_metrics": predictor.metrics,
-            "predictor_settings": predictor.settings,
-        },
+        metadata=collect_mlqca_reproducibility(
+            validated,
+            predictor,
+            resolved_config,
+            extra={
+                "search_backend": "csqca",
+                "n_generated_models": len(models),
+            },
+        ),
     )
 
 

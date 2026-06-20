@@ -241,6 +241,9 @@ def test_radical_search_returns_ranked_result_and_best_model(
         "m0003",
     }
     assert result.settings["pareto_objectives"]["minimize"] == ["complexity"]
+    assert result.metadata["data"]["fingerprint_sha256"]
+    assert result.metadata["predictor"]["backend"] == "xgboost"
+    assert result.metadata["config"]["mode"] == "radical"
 
 
 def test_conservative_search_evaluates_explicit_theory_models(

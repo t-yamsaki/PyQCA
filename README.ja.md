@@ -2,7 +2,10 @@
 
 **PyQCA** は、Python ネイティブな **Qualitative Comparative Analysis (QCA; 質的比較分析)** のための実験的ライブラリです。
 
-csQCA、mvQCA、fsQCA、混合型 QCA、閾値感度分析、キャリブレーション感度分析、レポート出力を Python のデータ分析ワークフロー内で扱うことを目的としています。
+csQCA、mvQCA、fsQCA、混合型QCAに加え、XGBoostによる条件選択と
+閾値提案をPyQCAのQCA engineへ接続するmachine-learning-enhanced QCA
+（mlQCA）をPythonのデータ分析ワークフロー内で扱うことを目的としています。
+閾値・キャリブレーション感度分析、レポート、再現性情報にも対応します。
 
 > ステータス: experimental / active development
 
@@ -18,6 +21,7 @@ csQCA、mvQCA、fsQCA、混合型 QCA、閾値感度分析、キャリブレー�
 * **fsQCA Anchor Sensitivity**: full membership, crossover, full non-membership anchor sweep
 * **Reporting**: Markdown, LaTeX, reproducibility metadata, experiment logging, Jupyter-friendly summary
 * **Visualization**: truth table, XY plot, coverage, configuration chart などの optional Matplotlib 可視化
+* **mlQCA**: XGBoost による条件選択、閾値抽出、QCA探索、Pareto評価、CV/bootstrap安定性検証
 
 ---
 
@@ -26,7 +30,7 @@ csQCA、mvQCA、fsQCA、混合型 QCA、閾値感度分析、キャリブレー�
 開発版をローカルで利用する場合:
 
 ```bash
-git clone https://github.com/your-org/pyqca.git
+git clone https://github.com/t-yamsaki/PyQCA.git
 cd pyqca
 pip install -e .
 ```
@@ -35,6 +39,18 @@ pip install -e .
 
 ```bash
 pip install -e ".[viz]"
+```
+
+mlQCA 機能を使う場合:
+
+```bash
+pip install -e ".[mlqca]"
+```
+
+外部SHAPパッケージも含める場合:
+
+```bash
+pip install -e ".[mlqca-explain]"
 ```
 
 将来的な PyPI 公開後:
@@ -339,6 +355,125 @@ plot_xy(model, "policy")
 
 ---
 
+## 主要機能 7: Machine-Learning-Enhanced QCA
+
+optional packageの `qca.mlqca` は、公開されたmlQCAプロトコルを参考に
+Pythonネイティブで実装したワークフローです。XGBoostを条件の重要度評価と
+分割閾値の抽出に使用し、その後のcalibration、組合せ探索、QCA評価、
+レポート、安定性分析にはPyQCA自身の実装を使用します。
+
+PyQCA組み込みの重要度表はXGBoostのprediction contributionsを使用するため、
+通常の利用では外部SHAPパッケージは必須ではありません。
+
+### XGBoostからcsQCA探索まで
+
+```python
+import numpy as np
+import pandas as pd
+
+from qca import (
+    MLQCAConfig,
+    fit_xgboost_predictor,
+    search_csqca_models,
+    validate_mlqca_input,
+)
+
+rng = np.random.default_rng(201)
+raw_df = pd.DataFrame(
+    {
+        "policy": rng.normal(size=80),
+        "capacity": rng.normal(size=80),
+        "support": rng.normal(size=80),
+    }
+)
+raw_df["Y"] = (
+    raw_df["policy"] + 0.5 * raw_df["capacity"] > 0
+).astype(int)
+
+validated = validate_mlqca_input(raw_df, outcome="Y")
+config = MLQCAConfig(
+    mode="radical",
+    top_k=3,
+    model_size=2,
+    random_state=201,
+    model_params={
+        "n_estimators": 100,
+        "max_depth": 3,
+        "learning_rate": 0.2,
+    },
+)
+
+predictor = fit_xgboost_predictor(validated, config)
+result = search_csqca_models(validated, predictor, config)
+
+print(predictor.feature_importance)
+print(predictor.cutoff_candidates)
+print(result.pareto_models)
+print(result.best_qca_result)
+```
+
+`mode="radical"` は重要度上位条件から組合せを生成します。
+`mode="conservative"` では、required/excluded conditionsまたは
+`conservative_models` による理論的制約が必要です。
+
+crisp、fuzzy、multi-valueを混在させる場合は
+`fit_mixedqca_from_predictor()` から `MixedQCA` に接続できます。
+fuzzy anchor候補は `run_anchor_sensitivity()` で感度分析できます。
+
+### CV / bootstrap安定性
+
+P6では層化cross-validationと層化bootstrapを利用できます。
+cross-validationは各holdout fold、bootstrapは両方のoutcome classを含む
+out-of-bag casesで予測性能を評価します。
+
+```python
+from pathlib import Path
+
+from qca import bootstrap_mlqca, cross_validate_mlqca
+
+cv_result = cross_validate_mlqca(
+    validated,
+    config,
+    n_splits=5,
+    top_k=3,
+)
+bootstrap_result = bootstrap_mlqca(
+    validated,
+    config,
+    n_bootstrap=100,
+    top_k=3,
+)
+
+print(cv_result.run_summary)
+print(cv_result.feature_stability)
+print(bootstrap_result.cutoff_stability)
+
+Path("reports").mkdir(parents=True, exist_ok=True)
+cv_result.to_markdown("reports/mlqca_cv.md")
+```
+
+安定性表には、上位条件への選択率、treeでの使用率、順位とcontributionの
+ばらつき、丸めたcutoffの選択率が含まれます。再現可能なresamplingには
+固定した `random_state` を指定してください。
+
+### 論文公開例の再現
+
+テストにはmlQCA公式リポジトリの公開 `voteData` を機械的にCSV変換した
+fixtureを収録しています。seed `201` と公開探索範囲内の代表的な設定で、
+次を検証しています。
+
+* 公開データ427 casesでの学習
+* training accuracyとROC AUCがともに `1.0`
+* tutorialで示された上位6条件がPyQCAでも上位10条件以内
+* 上位10条件から4条件を選択する210組合せ
+
+これはプロトコル水準の再現テストです。R/caretとPython版XGBoostが
+byte単位で同じtreeを生成することを保証するものではありません。
+fixtureの出典は `tests/data/README.md` と
+`THIRD_PARTY_NOTICES.md` に記録しています。
+
+---
+
 ## アーキテクチャ概要
 
 PyQCA は、`QCAEngineBase` を共通基底として、`CSQCA`, `MVQCA`, `FSQCA` を first-class engine として実装しています。
@@ -369,6 +504,12 @@ qca
 │   ├── backends.py / benchmark.py
 │   ├── standard.py / qmc.py
 │   └── set_cover.py
+├── mlqca
+│   ├── backend.py / config.py / schema.py / validation.py
+│   ├── xgboost.py / importance.py / cutoffs.py
+│   ├── calibration.py / csqca.py / fuzzy.py / mixed.py
+│   ├── search.py / stability.py / results.py
+│   └── reporting.py / reproducibility.py / viz.py
 ├── reporting
 │   ├── _formatters.py
 │   ├── export.py / jupyter.py / report.py
@@ -390,11 +531,111 @@ qca
 
 ---
 
+## 設計原則
+
+### 1. Pythonネイティブ
+
+pandas、NumPy、Jupyter、scikit-learnなどのPythonデータ分析環境で自然に
+利用できるAPIを提供します。
+
+### 2. 方法論的な透明性
+
+calibrated data、truth table、solution、consistency、coverageに加え、
+mlQCAのfeature importance、split threshold、calibration proposal、
+candidate model、Pareto frontier、CV/bootstrap安定性表を確認できます。
+
+QCAとmlQCAをblack boxとして扱わず、予測上の根拠、calibrationの選択、
+失敗したmodel評価、resamplingによる変動を追跡可能にします。
+
+### 3. Mixed-typeをfirst-classに扱う
+
+crisp、multi-value、fuzzy条件の混在を例外扱いせず、`MixedQCA` の主要な
+利用形態として扱います。
+
+### 4. 最小化アルゴリズムを交換可能にする
+
+standard、QMC、set-covering系backendを同じengineから選択・比較できます。
+
+### 5. 閾値を分析対象として扱う
+
+単一のcalibrationを固定せず、threshold sweepとanchor sensitivityにより
+結果が合理的な閾値範囲でどのように変化するかを確認できます。
+
+### 6. Machine learningは根拠であり権威ではない
+
+mlQCAのpredictive importanceは、条件screening、calibration proposal、
+model space探索のための経験的根拠として利用します。理論、因果解釈、
+QCAの方法論的仮定を置き換えるものではありません。
+
+`radical` modeは重要度上位条件を探索し、`conservative` modeは理論的制約を
+要求します。Pareto評価、論文例の再現、CV/bootstrap安定性を公開することで、
+提案されたconfigurationが単一のmodel fitへ依存していないか検討できます。
+
+---
+
+## 既存QCAツールとの関係
+
+| Tool / Approach | 主な位置づけ |
+| --- | --- |
+| R `QCA` package | Rにおける確立されたQCA workflow |
+| scpQCA系algorithm | set-coveringを利用する代替的な最小化 |
+| ThSQCA | threshold-sweepによる感度分析 |
+| R `mlQCA` package | predictive condition selectionとcalibration evidenceを用いる公開mlQCAプロトコル |
+| PyQCA | core/mixed QCA、最小化、感度分析、独立実装の`qca.mlqca`を統合するPython-native platform |
+
+PyQCAは既存ツールを置き換えるのではなく、相互検証可能なPython実装として
+補完することを目指します。`qca.mlqca` はHuangのmlQCA研究を方法論的に
+参照していますが、PyQCA独自のdata model、engine、result、reporting、
+stability analysisで実装しています。
+
+---
+
+## mlQCA実装ステータス
+
+* [x] P0: optional依存、設定、入力検証、結果contract
+* [x] P1: XGBoost学習、重要度、分割閾値抽出
+* [x] P2: crisp calibration、必要条件表、csQCA接続
+* [x] P3: radical/conservative探索、Pareto評価
+* [x] P4: fsQCA anchor提案、AnchorSensitivity接続
+* [x] P5: MixedQCA、Markdown、可視化、再現性情報
+* [x] P6: 論文公開例の再現、CV/bootstrap安定性検証
+
+---
+
 ## 開発ステータス
 
 PyQCA は現在 experimental です。研究ワークフロー、教育、プロトタイピング、手法検証を主な対象としています。
 
 高リスクな実務判断や査読論文での本格利用では、出力結果を既存 QCA ソフトウェアや手計算で検証してください。
+
+---
+
+## 引用
+
+PyQCAを研究で利用する場合は [`CITATION.cff`](CITATION.cff) の情報を用いて
+softwareを引用してください。
+
+`qca.mlqca` を利用する場合は、PyQCAに加えて方法論の参照元である次の論文も
+引用してください。
+
+> Huang, Q. (2025). Towards machine-learning enhanced QCA: optimizing
+> coverage and empirical significance. *Quality & Quantity*, 59, 4259-4281.
+> https://doi.org/10.1007/s11135-025-02146-2
+
+PyQCAの引用はsoftware実装を、Huang論文の引用はoptional mlQCA workflowへ
+影響を与えた方法論を示します。
+
+---
+
+## コントリビューション
+
+コントリビューションはプロジェクトのMIT Licenseで受け入れます。開発手順と
+出典要件は [`CONTRIBUTING.md`](CONTRIBUTING.md) を参照してください。
+
+`qca.mlqca` への貢献では、方法論上の参照元、datasetのprovenance、依存packageの
+license、独立実装かadaptationかを明記してください。GPL-licensed R sourceを
+MIT-licensed codebaseへ翻訳・複製しないでください。再現用fixtureには再配布可能な
+licenseが必要です。
 
 ---
 

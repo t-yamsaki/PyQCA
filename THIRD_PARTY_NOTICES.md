@@ -77,7 +77,8 @@ extract frequently used split thresholds as calibration candidates. PyQCA
 then uses its own calibration, csQCA, minimization, model-ranking, and Pareto
 evaluation implementations. Fuzzy-set anchor proposals and sensitivity
 analysis are implemented using PyQCA's own fsQCA calibration and
-`AnchorSensitivity` components.
+`AnchorSensitivity` components. Mixed-type execution, reports,
+visualizations, and reproducibility records use PyQCA's own APIs.
 
 - Project: https://qinhuang-poliecon.github.io/mlQCA/
 - Repository: https://github.com/qinhuang-poliecon/mlQCA
@@ -87,6 +88,12 @@ analysis are implemented using PyQCA's own fsQCA calibration and
   4259-4281. https://doi.org/10.1007/s11135-025-02146-2
 
 No R source code from mlQCA is copied, bundled, or executed by PyQCA.
+
+The source distribution includes `tests/data/mlqca_vote_data.csv` solely as a
+reproduction-test fixture. It is a mechanical CSV conversion of
+`data/voteData.rda` from mlQCA repository commit
+`f5bce883ace6bdae394853539aca66d6576deba1`, distributed under that
+repository's MIT License. The fixture is not included in the PyQCA wheel.
 
 ## Research References
 

@@ -92,6 +92,11 @@ def _report_tables(obj: Any) -> list[tuple[str, pd.DataFrame]]:
         ("Case Coverage", "case_coverage"),
         ("Condition Schema", "condition_schema"),
         ("Sweep Summary", "summary_df"),
+        ("Condition Ranking", "condition_ranking"),
+        ("Feature Importance", "feature_importance"),
+        ("Calibration Proposals", "calibration_proposals"),
+        ("Candidate Models", "candidate_models"),
+        ("Pareto Frontier", "pareto_models"),
     ):
         if hasattr(obj, attr):
             value = getattr(obj, attr)
@@ -123,6 +128,11 @@ def _resolve_table(obj: Any, table: str) -> pd.DataFrame:
             "case_coverage",
             "condition_schema",
             "summary_df",
+            "condition_ranking",
+            "feature_importance",
+            "calibration_proposals",
+            "candidate_models",
+            "pareto_models",
         )
         if hasattr(obj, name)
     ]

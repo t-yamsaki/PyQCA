@@ -38,6 +38,19 @@ from qca.mlqca.fuzzy import (
     run_anchor_sensitivity,
 )
 from qca.mlqca.importance import extract_xgboost_importance
+from qca.mlqca.mixed import (
+    MixedCalibrationSet,
+    MixedConditionKind,
+    MLQCAMixedResult,
+    calibrate_mixed_conditions,
+    fit_mixedqca_from_calibration,
+    fit_mixedqca_from_predictor,
+)
+from qca.mlqca.reporting import generate_mlqca_markdown_report
+from qca.mlqca.reproducibility import (
+    collect_mlqca_reproducibility,
+    dataframe_fingerprint,
+)
 from qca.mlqca.results import MLQCAResult
 from qca.mlqca.schema import (
     MLConditionDataType,
@@ -50,7 +63,18 @@ from qca.mlqca.search import (
     pareto_frontier,
     search_csqca_models,
 )
+from qca.mlqca.stability import (
+    MLQCAStabilityResult,
+    StabilityMethod,
+    bootstrap_mlqca,
+    cross_validate_mlqca,
+)
 from qca.mlqca.validation import ValidatedMLQCAInput, validate_mlqca_input
+from qca.mlqca.viz import (
+    plot_mlqca_cutoffs,
+    plot_mlqca_frontier,
+    plot_mlqca_importance,
+)
 from qca.mlqca.xgboost import XGBoostBackend, fit_xgboost_predictor
 
 __all__ = [
@@ -63,10 +87,12 @@ __all__ = [
     "MLQCAExtra",
     "MLQCAMode",
     "MLQCAResult",
+    "MLQCAStabilityResult",
     "MLQCAValidation",
     "PredictorBackend",
     "PredictorFitResult",
     "SearchErrorMode",
+    "StabilityMethod",
     "CalibrationDirection",
     "CrispCalibrationSet",
     "FuzzyCalibrationSet",
@@ -75,6 +101,7 @@ __all__ = [
     "ValidatedMLQCAInput",
     "XGBoostBackend",
     "build_necessity_table",
+    "bootstrap_mlqca",
     "calibrate_crisp_conditions",
     "calibrate_fuzzy_conditions",
     "extract_split_cutoffs",
@@ -96,4 +123,17 @@ __all__ = [
     "run_anchor_sensitivity",
     "validate_mlqca_input",
     "xgboost_split_nodes",
+    "MLQCAMixedResult",
+    "MixedCalibrationSet",
+    "MixedConditionKind",
+    "calibrate_mixed_conditions",
+    "collect_mlqca_reproducibility",
+    "cross_validate_mlqca",
+    "dataframe_fingerprint",
+    "fit_mixedqca_from_calibration",
+    "fit_mixedqca_from_predictor",
+    "generate_mlqca_markdown_report",
+    "plot_mlqca_cutoffs",
+    "plot_mlqca_frontier",
+    "plot_mlqca_importance",
 ]

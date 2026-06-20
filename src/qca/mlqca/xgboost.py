@@ -33,10 +33,23 @@ class XGBoostBackend:
             merged.update(model_params)
         self.model_params = merged
 
-    def fit(self, validated: ValidatedMLQCAInput) -> PredictorFitResult:
-        """Fit a binary XGBoost classifier and extract model evidence."""
+    def fit(
+        self,
+        validated: ValidatedMLQCAInput,
+        evaluation: ValidatedMLQCAInput | None = None,
+    ) -> PredictorFitResult:
+        """Fit XGBoost and optionally evaluate on a separate validated set."""
         if not isinstance(validated, ValidatedMLQCAInput):
             raise TypeError("validated must be a ValidatedMLQCAInput object.")
+        if evaluation is not None and not isinstance(
+            evaluation,
+            ValidatedMLQCAInput,
+        ):
+            raise TypeError("evaluation must be a ValidatedMLQCAInput object.")
+        if evaluation is not None and evaluation.candidates != validated.candidates:
+            raise ValueError(
+                "training and evaluation inputs must use identical candidates."
+            )
         require_mlqca_dependencies()
 
         xgb, metrics_module, sklearn_version = _load_xgboost_runtime()
@@ -46,8 +59,14 @@ class XGBoostBackend:
         target = validated.target
         model.fit(features, target)
 
-        probabilities = np.asarray(model.predict_proba(features), dtype=float)[:, 1]
-        predicted = np.asarray(model.predict(features), dtype=int)
+        evaluation_data = evaluation or validated
+        evaluation_features = evaluation_data.features
+        evaluation_target = evaluation_data.target
+        probabilities = np.asarray(
+            model.predict_proba(evaluation_features),
+            dtype=float,
+        )[:, 1]
+        predicted = np.asarray(model.predict(evaluation_features), dtype=int)
         booster = model.get_booster()
         dmatrix = xgb.DMatrix(
             features,
@@ -72,12 +91,12 @@ class XGBoostBackend:
             max_cutoffs_per_condition=self.config.max_cutoffs_per_condition,
         )
         predictions = _prediction_frame(
-            validated,
+            evaluation_data,
             probabilities=probabilities,
             predicted=predicted,
         )
         metrics = _training_metrics(
-            target.to_numpy(dtype=int),
+            evaluation_target.to_numpy(dtype=int),
             probabilities=probabilities,
             predicted=predicted,
             metrics_module=metrics_module,
@@ -93,9 +112,12 @@ class XGBoostBackend:
                 "backend": self.name,
                 "feature_names": list(validated.candidates),
                 "n_cases": validated.n_cases,
+                "n_evaluation_cases": evaluation_data.n_cases,
                 "model_params": params,
                 "importance_method": "xgboost_pred_contribs",
-                "evaluation_scope": "training",
+                "evaluation_scope": (
+                    "holdout" if evaluation is not None else "training"
+                ),
                 "xgboost_version": xgb.__version__,
                 "scikit_learn_version": sklearn_version,
             },
@@ -163,9 +185,14 @@ def _training_metrics(
     predicted: np.ndarray,
     metrics_module: Any,
 ) -> dict[str, float]:
+    roc_auc = (
+        float(metrics_module.roc_auc_score(target, probabilities))
+        if len(np.unique(target)) == 2
+        else float("nan")
+    )
     return {
         "accuracy": float(metrics_module.accuracy_score(target, predicted)),
-        "roc_auc": float(metrics_module.roc_auc_score(target, probabilities)),
+        "roc_auc": roc_auc,
         "log_loss": float(
             metrics_module.log_loss(target, probabilities, labels=[0, 1])
         ),

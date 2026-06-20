@@ -126,6 +126,66 @@ class MLQCAResult:
             Path(path).write_text(markdown, encoding="utf-8")
         return markdown
 
+    def to_markdown_report(
+        self,
+        path: str | Path | None = None,
+        *,
+        title: str = "mlQCA Analysis Report",
+        max_rows: int = 20,
+    ) -> str:
+        """Render a complete mlQCA report with reproducibility metadata."""
+        from qca.mlqca.reporting import generate_mlqca_markdown_report
+
+        return generate_mlqca_markdown_report(
+            self,
+            path=path,
+            title=title,
+            max_rows=max_rows,
+        )
+
+    def to_jupyter_summary(self):
+        """Return a notebook-friendly summary object."""
+        from qca.reporting import jupyter_summary
+
+        return jupyter_summary(self, title="mlQCA Summary")
+
+    def _repr_html_(self) -> str:
+        return self.to_jupyter_summary()._repr_html_()
+
+    def plot_importance(
+        self,
+        *,
+        top_n: int = 15,
+        metric: str = "shap_mean_abs",
+        path: str | Path | None = None,
+    ):
+        """Plot feature importance using optional Matplotlib."""
+        from qca.mlqca.viz import plot_mlqca_importance
+
+        return plot_mlqca_importance(
+            self,
+            top_n=top_n,
+            metric=metric,
+            path=path,
+        )
+
+    def plot_cutoffs(
+        self,
+        feature: str,
+        *,
+        path: str | Path | None = None,
+    ):
+        """Plot split-threshold frequency for one condition."""
+        from qca.mlqca.viz import plot_mlqca_cutoffs
+
+        return plot_mlqca_cutoffs(self, feature, path=path)
+
+    def plot_frontier(self, *, path: str | Path | None = None):
+        """Plot candidate models and the Pareto frontier."""
+        from qca.mlqca.viz import plot_mlqca_frontier
+
+        return plot_mlqca_frontier(self, path=path)
+
 
 def _dataframe_to_markdown(df: pd.DataFrame) -> str:
     if df.empty:

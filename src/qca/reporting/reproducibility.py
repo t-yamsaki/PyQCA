@@ -130,6 +130,14 @@ def _analysis_object_metadata(obj: Any) -> dict[str, Any]:
         metadata["n_cases"] = obj.n_cases
     if hasattr(obj, "n_conditions"):
         metadata["n_conditions"] = obj.n_conditions
+    if hasattr(obj, "n_models"):
+        metadata["n_models"] = obj.n_models
+    if hasattr(obj, "n_valid_models"):
+        metadata["n_valid_models"] = obj.n_valid_models
+    if hasattr(obj, "best_model_id"):
+        metadata["best_model_id"] = obj.best_model_id
+    if hasattr(obj, "metadata") and isinstance(obj.metadata, dict):
+        metadata["analysis_metadata"] = obj.metadata
 
     return metadata
 

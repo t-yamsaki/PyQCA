@@ -128,12 +128,16 @@ third-party notice.
 
 ## mlQCA Findings
 
-PyQCA's `qca.mlqca` package is a Python-native implementation. The P0-P4
+PyQCA's `qca.mlqca` package is a Python-native implementation. The P0-P6
 modules define PyQCA-specific configuration, validation, result contracts, an
 optional XGBoost backend, feature-importance summaries, split-threshold
 aggregation, crisp calibration, csQCA evaluation, condition-combination
 search, Pareto analysis, fuzzy-anchor proposals, fsQCA calibration, and anchor
-sensitivity adapters.
+sensitivity adapters. MixedQCA integration, Markdown reporting,
+visualization, and reproducibility metadata are also independently
+implemented with PyQCA-native components. P6 adds stratified cross-validation,
+stratified bootstrap with out-of-bag evaluation, and aggregate feature and
+cutoff stability tables.
 
 The implementation was written against:
 
@@ -145,6 +149,11 @@ The implementation was written against:
 No R source from the mlQCA package was copied or translated. PyQCA's data
 models, error handling, ranking tables, optional dependency behavior, and test
 suite are independently implemented.
+
+The reproduction test fixture `tests/data/mlqca_vote_data.csv` is a mechanical
+conversion of `data/voteData.rda` from mlQCA repository commit
+`f5bce883ace6bdae394853539aca66d6576deba1`. The source repository is MIT
+licensed. No analytical transformation was applied during conversion.
 
 ## Release Requirements
 

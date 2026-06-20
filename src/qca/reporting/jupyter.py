@@ -106,11 +106,21 @@ def _summary_metrics(obj: Any) -> dict[str, Any]:
         summary_df = obj.summary_df
         if isinstance(summary_df, pd.DataFrame):
             metrics["n_summary_rows"] = len(summary_df)
+    for attr in ("n_models", "n_valid_models", "best_model_id"):
+        if hasattr(obj, attr):
+            metrics[attr] = getattr(obj, attr)
     return metrics
 
 
 def _primary_table(obj: Any) -> pd.DataFrame | None:
-    for attr in ("solutions", "summary_df", "truth_table", "condition_schema"):
+    for attr in (
+        "candidate_models",
+        "pareto_models",
+        "solutions",
+        "summary_df",
+        "truth_table",
+        "condition_schema",
+    ):
         if hasattr(obj, attr):
             value = getattr(obj, attr)
             if isinstance(value, pd.DataFrame):
