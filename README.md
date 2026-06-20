@@ -162,7 +162,7 @@ result = model.fit(
 print(result.summary())
 ```
 
-The same workflow can be built from the v0.2 unified schema:
+The same workflow can be built from the unified condition schema:
 
 ```python
 schema = [
@@ -539,7 +539,7 @@ with `run_anchor_sensitivity()`.
 
 ### Cross-Validation and Bootstrap Stability
 
-P6 provides stratified cross-validation and stratified bootstrap analysis.
+PyQCA provides stratified cross-validation and stratified bootstrap analysis.
 Cross-validation evaluates each model on its held-out fold. Bootstrap uses
 out-of-bag cases when both outcome classes are available.
 
@@ -879,79 +879,6 @@ sweep_result.plot_trajectory()
 
 ---
 
-## Roadmap
-
-### v0.1 — Core QCA
-
-* [x] Data validation
-* [x] Crisp-set calibration
-* [x] Fuzzy-set calibration
-* [x] Multi-value condition handling
-* [x] Truth table construction
-* [x] Necessity analysis
-* [x] Sufficiency analysis
-* [x] Consistency and coverage metrics
-* [x] Basic csQCA
-* [x] Basic mvQCA
-* [x] Basic fsQCA
-
-### v0.2 — MixedQCA
-
-* [x] Unified mixed-type condition schema
-* [x] `MixedQCA` high-level API
-* [x] Mixed crisp / multi-value / fuzzy workflows
-* [x] Unified result object
-* [x] Markdown export
-* [x] Formula export
-
-### v0.3 — Minimization Backends
-
-* [x] Standard Boolean minimizer
-* [x] Quine-McCluskey-style minimizer
-* [x] Set-covering-based minimizer
-* [x] Greedy set-cover minimizer
-* [x] Exact set-cover backend
-* [x] Benchmarking utilities
-
-### v0.4 — ThresholdSweep
-
-* [x] Outcome threshold sweep
-* [x] Single-condition threshold sweep
-* [x] Multi-condition threshold grid search
-* [x] Dual outcome-condition threshold sweep
-* [x] Sweep result summaries
-* [x] Heatmap and trajectory visualization
-
-### v0.5 — fsQCA Anchor Sensitivity
-
-* [x] Full membership anchor sweep
-* [x] Crossover anchor sweep
-* [x] Full non-membership anchor sweep
-* [x] Multi-anchor grid analysis
-* [x] Calibration stability reports
-
-### v0.6 — Reporting and Reproducibility
-
-* [x] Automated Markdown reports
-* [x] LaTeX table export
-* [x] Configuration charts
-* [x] Reproducibility metadata
-* [x] Experiment logging
-* [x] Jupyter-friendly summaries
-
-### mlQCA Integration — P0-P6
-
-* [x] Optional dependencies, configuration, validation, and result contracts
-* [x] XGBoost training, condition importance, and split-threshold extraction
-* [x] Crisp calibration, necessity analysis, and csQCA integration
-* [x] Radical/conservative combination search and Pareto evaluation
-* [x] Fuzzy anchor proposals and anchor-sensitivity integration
-* [x] MixedQCA integration, Markdown reports, visualization, and metadata
-* [x] Published-example reproduction tests
-* [x] Cross-validation and bootstrap stability analysis
-
----
-
 ## Relationship to Existing QCA Tools
 
 PyQCA is inspired by the broader QCA software ecosystem, especially mature R-based workflows.
@@ -1165,7 +1092,9 @@ Please open an issue before submitting a large pull request.
 
 PyQCA is currently experimental.
 
-The initial development priority is methodological correctness and reproducibility rather than API stability. Breaking changes may occur before v1.0.
+The current development priority is methodological correctness,
+reproducibility, and a clear public API. Breaking changes may occur before
+v1.0.
 
 Recommended use for now:
 
@@ -1175,4 +1104,11 @@ Recommended use for now:
 * educational examples;
 * methodological experimentation.
 
-Not yet recommended for production or high-stakes applied research without manual validation.
+For publications and high-stakes applied research, validate important results
+against established QCA software, methodological expectations, and the source
+data.
+
+Future work is tracked through
+[GitHub Issues](https://github.com/t-yamsaki/PyQCA/issues). Published versions
+and release notes will be available through
+[GitHub Releases](https://github.com/t-yamsaki/PyQCA/releases).

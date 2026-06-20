@@ -24,7 +24,7 @@ HAS_MLQCA = (
     importlib.util.find_spec("xgboost") is not None
     and importlib.util.find_spec("sklearn") is not None
 )
-PAPER_DATA = Path(__file__).parent / "data" / "mlqca_vote_data.csv"
+PAPER_DATA = Path(__file__).parents[1] / "data" / "mlqca_vote_data.csv"
 PAPER_TOP_FEATURES = {
     "V648",
     "P_V195",

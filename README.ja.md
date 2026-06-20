@@ -440,7 +440,7 @@ fuzzy anchor候補は `run_anchor_sensitivity()` で感度分析できます。
 
 ### CV / bootstrap安定性
 
-P6では層化cross-validationと層化bootstrapを利用できます。
+PyQCAでは層化cross-validationと層化bootstrapを利用できます。
 cross-validationは各holdout fold、bootstrapは両方のoutcome classを含む
 out-of-bag casesで予測性能を評価します。
 
@@ -608,23 +608,27 @@ stability analysisで実装しています。
 
 ---
 
-## mlQCA実装ステータス
-
-* [x] P0: optional依存、設定、入力検証、結果contract
-* [x] P1: XGBoost学習、重要度、分割閾値抽出
-* [x] P2: crisp calibration、必要条件表、csQCA接続
-* [x] P3: radical/conservative探索、Pareto評価
-* [x] P4: fsQCA anchor提案、AnchorSensitivity接続
-* [x] P5: MixedQCA、Markdown、可視化、再現性情報
-* [x] P6: 論文公開例の再現、CV/bootstrap安定性検証
-
----
-
 ## 開発ステータス
 
-PyQCA は現在 experimental です。研究ワークフロー、教育、プロトタイピング、手法検証を主な対象としています。
+PyQCAは現在experimentalです。現時点では方法論的な正確性、再現性、
+明確な公開APIを優先して開発しています。v1.0まではbreaking changeが
+発生する可能性があります。
 
-高リスクな実務判断や査読論文での本格利用では、出力結果を既存 QCA ソフトウェアや手計算で検証してください。
+現在の主な利用対象:
+
+* 探索的研究
+* prototype analysis
+* benchmarking
+* 教育用example
+* 方法論の検証
+
+査読論文や高リスクな実務判断で利用する場合は、重要な結果を既存QCA
+software、方法論上の期待、source dataと照合してください。
+
+今後の開発項目は
+[GitHub Issues](https://github.com/t-yamsaki/PyQCA/issues)、公開versionと
+release noteは
+[GitHub Releases](https://github.com/t-yamsaki/PyQCA/releases)で管理します。
 
 ---
 
