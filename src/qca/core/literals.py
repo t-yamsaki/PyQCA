@@ -28,7 +28,7 @@ class SetLiteral:
     negated: bool = False
 
     # ------------------------------------------------------------------
-    # 表示
+    # Display
     # ------------------------------------------------------------------
 
     def label(self) -> str:
@@ -39,36 +39,34 @@ class SetLiteral:
         return f"SetLiteral({self.label()!r})"
 
     # ------------------------------------------------------------------
-    # メンバーシップ計算
+    # Membership calculation
     # ------------------------------------------------------------------
 
     def membership(self, df: pd.DataFrame) -> pd.Series:
         """Return membership scores for this literal."""
         if self.name not in df.columns:
             raise KeyError(
-                f"SetLiteral '{self.name}' が DataFrame に存在しません。"
-                f"利用可能なカラム: {list(df.columns)}"
+                f"SetLiteral '{self.name}' is not present in the DataFrame. "
+                f"Available columns: {list(df.columns)}"
             )
 
         s = pd.to_numeric(df[self.name], errors="raise").astype(float)
 
-        # 値域チェック: [0.0, 1.0]
+        # Validate the [0.0, 1.0] membership range.
         if not ((s >= NO_MEMBERSHIP).all() and (s <= FULL_MEMBERSHIP).all()):
             raise ValueError(
-                f"SetLiteral '{self.name}' の値は [0, 1] の範囲内である必要があります。"
-                f"検出された範囲: [{s.min():.4f}, {s.max():.4f}]"
+                f"SetLiteral '{self.name}' values must be within [0, 1]. "
+                f"Observed range: [{s.min():.4f}, {s.max():.4f}]"
             )
 
-        # クロスオーバーポイントの警告
-        # Ragin (2008) p.30: 0.5 のケースは分析的に曖昧
+        # Ragin (2008, p. 30): cases at 0.5 are analytically ambiguous.
         at_crossover = (s - MEMBERSHIP_THRESHOLD).abs() < CROSSOVER_EPSILON
         if at_crossover.any():
             n_at = int(at_crossover.sum())
             warnings.warn(
-                f"SetLiteral '{self.name}' に {n_at} 件のケースが "
-                f"クロスオーバーポイント (0.5) に存在します。"
-                f"Ragin (2008) p.30 はメンバーシップの曖昧さを避けるため "
-                f"0.5 への配置を推奨していません。キャリブレーションを見直してください。",
+                f"SetLiteral '{self.name}' has {n_at} case(s) at the crossover "
+                "point (0.5). Ragin (2008, p. 30) recommends avoiding exact "
+                "0.5 memberships because of ambiguity. Review the calibration.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -76,7 +74,7 @@ class SetLiteral:
         return (FULL_MEMBERSHIP - s) if self.negated else s
 
     # ------------------------------------------------------------------
-    # 集合演算ユーティリティ
+    # Set-operation utilities
     # ------------------------------------------------------------------
 
     def negate(self) -> SetLiteral:
@@ -103,7 +101,7 @@ class MultiValueLiteral:
     value: Any
 
     # ------------------------------------------------------------------
-    # 表示
+    # Display
     # ------------------------------------------------------------------
 
     def label(self) -> str:
@@ -114,26 +112,27 @@ class MultiValueLiteral:
         return f"MultiValueLiteral({self.name!r}, {self.value!r})"
 
     # ------------------------------------------------------------------
-    # メンバーシップ計算
+    # Membership calculation
     # ------------------------------------------------------------------
 
     def membership(self, df: pd.DataFrame) -> pd.Series:
         """Return membership scores for this literal."""
         if self.name not in df.columns:
             raise KeyError(
-                f"MultiValueLiteral '{self.name}' が DataFrame に存在しません。"
-                f"利用可能なカラム: {list(df.columns)}"
+                f"MultiValueLiteral '{self.name}' is not present in the DataFrame. "
+                f"Available columns: {list(df.columns)}"
             )
 
         col = df[self.name]
 
-        # カテゴリ値の存在チェック
+        # Check that the category value is present.
         if self.value not in col.values:
             warnings.warn(
-                f"MultiValueLiteral '{self.name}={self.value}' の値 "
-                f"{self.value!r} が DataFrame に存在しません。"
-                f"利用可能な値: {sorted(col.dropna().unique().tolist(), key=str)}\n"
-                f"型の不一致（例: int vs str）がないか確認してください。",
+                f"Value {self.value!r} for MultiValueLiteral "
+                f"'{self.name}={self.value}' is not present in the DataFrame. "
+                "Available values: "
+                f"{sorted(col.dropna().unique().tolist(), key=str)}\n"
+                "Check for a type mismatch, such as int versus str.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -141,7 +140,7 @@ class MultiValueLiteral:
         return (col == self.value).astype(float)
 
     # ------------------------------------------------------------------
-    # 集合演算ユーティリティ
+    # Set-operation utilities
     # ------------------------------------------------------------------
 
     def conflicts_with(self, other: object) -> bool:
@@ -152,7 +151,7 @@ class MultiValueLiteral:
 
 
 # ---------------------------------------------------------------------------
-# ファクトリ関数
+# Factory functions
 # ---------------------------------------------------------------------------
 
 
@@ -160,7 +159,7 @@ def parse_literal(text: str) -> SetLiteral | MultiValueLiteral:
     """Parse a literal label into a literal object."""
     text = text.strip()
     if not text:
-        raise ValueError("リテラル文字列が空です。")
+        raise ValueError("Literal string cannot be empty.")
 
     if "=" in text:
         # MultiValueLiteral: "name=value"
@@ -168,7 +167,7 @@ def parse_literal(text: str) -> SetLiteral | MultiValueLiteral:
         value: Any = _parse_value(val_str)
         return MultiValueLiteral(name.strip(), value)
 
-    # SetLiteral: "name" または "~name"
+    # SetLiteral: "name" or "~name"
     if text.startswith("~"):
         return SetLiteral(text[1:].strip(), negated=True)
     return SetLiteral(text)
@@ -191,5 +190,5 @@ def _parse_value(val_str: str) -> Any:
 def parse_conjunction(text: str) -> list[SetLiteral | MultiValueLiteral]:
     """Parse a conjunction label into literal objects."""
     if not text.strip():
-        raise ValueError("conjunction 文字列が空です。")
+        raise ValueError("Conjunction string cannot be empty.")
     return [parse_literal(part) for part in text.split("*")]

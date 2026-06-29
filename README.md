@@ -1018,7 +1018,7 @@ Suggested citation:
 ```bibtex
 @software{pyqca,
   title = {PyQCA: A Python-native toolkit for core, mixed, threshold-sweep, and machine-learning-enhanced QCA},
-  author = {taishi-yamasaki},
+  author = {Yamasaki, Taishi},
   year = {2026},
   url = {https://github.com/t-yamsaki/PyQCA}
 }

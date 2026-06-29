@@ -96,7 +96,7 @@ class TestSetLiteralMembership:
             SetLiteral("skill").membership(df)
 
     def test_crossover_warns(self, crossover_df):
-        with pytest.warns(UserWarning, match="クロスオーバーポイント"):
+        with pytest.warns(UserWarning, match="crossover point"):
             SetLiteral("skill").membership(crossover_df)
 
     def test_no_crossover_no_warning(self, simple_df):
@@ -186,7 +186,7 @@ class TestMultiValueLiteralMembership:
             MultiValueLiteral("nonexistent", "val").membership(simple_df)
 
     def test_missing_value_warns(self, simple_df):
-        with pytest.warns(UserWarning, match="存在しません"):
+        with pytest.warns(UserWarning, match="not present"):
             MultiValueLiteral("region", "west").membership(simple_df)
 
     def test_returns_float_series(self, simple_df):
@@ -269,7 +269,7 @@ class TestParseLiteral:
         assert lit.label() == "skill"
 
     def test_empty_raises(self):
-        with pytest.raises(ValueError, match="空"):
+        with pytest.raises(ValueError, match="cannot be empty"):
             parse_literal("")
 
     def test_roundtrip_set_literal(self):
@@ -296,7 +296,7 @@ class TestParseConjunction:
         assert result[2].label() == "region=north"
 
     def test_empty_raises(self):
-        with pytest.raises(ValueError, match="空"):
+        with pytest.raises(ValueError, match="cannot be empty"):
             parse_conjunction("")
 
 
@@ -436,10 +436,10 @@ class TestNecessityResult:
         assert "is_trivial" in d
 
     def test_str_trivial_note(self, trivial_result):
-        assert "トリビアル" in str(trivial_result)
+        assert "Potentially trivial" in str(trivial_result)
 
     def test_str_no_trivial_note(self, necessary_result):
-        assert "トリビアル" not in str(necessary_result)
+        assert "Potentially trivial" not in str(necessary_result)
 
 
 # ===========================================================================

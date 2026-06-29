@@ -3,7 +3,8 @@ message: "If you use PyQCA in research, please cite the software."
 title: "PyQCA: A Python-native toolkit for Qualitative Comparative Analysis"
 type: software
 authors:
-  - name: "taishi-yamasaki"
+  - family-names: "Yamasaki"
+    given-names: "Taishi"
 version: 0.2.0
 date-released: 2026-06-19
 repository-code: "https://github.com/t-yamsaki/PyQCA"

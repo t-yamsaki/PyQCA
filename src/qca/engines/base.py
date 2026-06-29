@@ -6,7 +6,7 @@ import warnings
 from collections.abc import Sequence
 from itertools import combinations
 
-# 型エイリアス（実行時には使用しない）
+# Type aliases (not used at runtime).
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -60,10 +60,8 @@ class QCAEngineBase:
         condition_types: dict[str, str] | None = None,
         condition_specs: Sequence[ConditionSpec] | None = None,
     ) -> None:
-        # インデックスを 0 始まりの整数に正規化する。
-        # 理由: groupby().groups から取得したインデックスと
-        #       conjunction_membership() の結果インデックスを
-        #       一致させるために必要。
+        # Normalize the index to zero-based integers so indices returned by
+        # groupby().groups align with conjunction_membership() results.
         self.data = data.copy().reset_index(drop=True)
         self.case_id, self.generated_case_id = self._resolve_case_id(case_id)
         (
@@ -80,7 +78,7 @@ class QCAEngineBase:
             multivalue_conditions=multivalue_conditions,
         )
         if outcome is None:
-            raise ValueError("outcome は必須です。")
+            raise ValueError("outcome is required.")
         self.outcome = outcome
         self._validate()
 
@@ -143,12 +141,12 @@ class QCAEngineBase:
         if uses_pyqca_schema:
             if conditions is None or condition_types is None:
                 raise ValueError(
-                    "conditions と condition_types は一緒に指定してください。"
+                    "conditions and condition_types must be provided together."
                 )
             if uses_legacy_schema:
                 raise ValueError(
-                    "conditions / condition_types と legacy の "
-                    "set_conditions / multivalue_conditions は同時指定できません。"
+                    "conditions / condition_types cannot be combined with the "
+                    "legacy set_conditions / multivalue_conditions arguments."
                 )
             return self._condition_schema_from_specs(
                 self._normalize_pyqca_condition_schema(conditions, condition_types)
@@ -156,8 +154,8 @@ class QCAEngineBase:
 
         if not uses_legacy_schema:
             raise ValueError(
-                "conditions / condition_types または legacy の "
-                "set_conditions / multivalue_conditions を指定してください。"
+                "Provide conditions / condition_types or the legacy "
+                "set_conditions / multivalue_conditions arguments."
             )
 
         set_list = list(set_conditions or [])
@@ -190,13 +188,15 @@ class QCAEngineBase:
         missing_types = [c for c in condition_list if c not in condition_types]
         if missing_types:
             raise ValueError(
-                f"condition_types に型指定がない条件があります: {missing_types}"
+                "condition_types is missing entries for these conditions: "
+                f"{missing_types}"
             )
 
         extra_types = [c for c in condition_types if c not in condition_list]
         if extra_types:
             raise ValueError(
-                f"conditions に含まれない condition_types キーがあります: {extra_types}"
+                "condition_types contains keys not present in conditions: "
+                f"{extra_types}"
             )
 
         specs: list[ConditionSpec] = []
@@ -219,8 +219,8 @@ class QCAEngineBase:
         if value in {"multi", "multi-value", "multivalue", "mv", "mvqca"}:
             return "multi"
         raise ValueError(
-            f"condition_types[{condition!r}] に未知の型 {condition_type!r} "
-            "が指定されています。利用可能な型: crisp, fuzzy, multi"
+            f"condition_types[{condition!r}] has unknown type {condition_type!r}. "
+            "Available types: crisp, fuzzy, multi"
         )
 
     @staticmethod
@@ -232,7 +232,7 @@ class QCAEngineBase:
                 duplicates.append(condition)
             seen.add(condition)
         if duplicates:
-            raise ValueError(f"conditions に重複があります: {duplicates}")
+            raise ValueError(f"conditions contains duplicates: {duplicates}")
 
     def _infer_set_condition_type(self, condition: str) -> str:
         """Infer whether a legacy set condition is crisp or fuzzy."""
@@ -247,7 +247,7 @@ class QCAEngineBase:
         return "fuzzy"
 
     # ------------------------------------------------------------------
-    # プロパティ
+    # Properties
     # ------------------------------------------------------------------
 
     @property
@@ -565,7 +565,7 @@ class QCAEngineBase:
         )
 
     # ------------------------------------------------------------------
-    # 検証
+    # Validation
     # ------------------------------------------------------------------
 
     def _validate(self) -> None:
@@ -586,8 +586,8 @@ class QCAEngineBase:
         missing = [c for c in required if c not in self.data.columns]
         if missing:
             raise ValueError(
-                f"必須カラムが DataFrame に存在しません: {missing}\n"
-                f"利用可能なカラム: {list(self.data.columns)}"
+                f"Required columns are missing from the DataFrame: {missing}\n"
+                f"Available columns: {list(self.data.columns)}"
             )
 
     def _coerce_set_conditions(self) -> None:
@@ -597,15 +597,15 @@ class QCAEngineBase:
                 vals = pd.to_numeric(self.data[c], errors="raise").astype(float)
             except (ValueError, TypeError) as e:
                 raise TypeError(
-                    f"set_condition '{c}' を数値に変換できません: {e}"
+                    f"set_condition '{c}' cannot be converted to numeric values: {e}"
                 ) from e
 
             if not ((vals >= 0.0).all() and (vals <= 1.0).all()):
                 raise ValueError(
-                    f"set_condition '{c}' は [0, 1] の範囲内である必要があります。"
-                    f"検出された範囲: [{vals.min():.4f}, {vals.max():.4f}]"
+                    f"set_condition '{c}' must be within [0, 1]. "
+                    f"Observed range: [{vals.min():.4f}, {vals.max():.4f}]"
                 )
-            # 変換済みの float 値をデータに書き戻す
+            # Store the converted float values back in the data.
             self.data[c] = vals
 
     def _coerce_outcome(self) -> None:
@@ -614,13 +614,13 @@ class QCAEngineBase:
             y = pd.to_numeric(self.data[self.outcome], errors="raise").astype(float)
         except (ValueError, TypeError) as e:
             raise TypeError(
-                f"outcome '{self.outcome}' を数値に変換できません: {e}"
+                f"outcome '{self.outcome}' cannot be converted to numeric values: {e}"
             ) from e
 
         if not ((y >= 0.0).all() and (y <= 1.0).all()):
             raise ValueError(
-                f"outcome '{self.outcome}' は [0, 1] の範囲内である必要があります。"
-                f"検出された範囲: [{y.min():.4f}, {y.max():.4f}]"
+                f"outcome '{self.outcome}' must be within [0, 1]. "
+                f"Observed range: [{y.min():.4f}, {y.max():.4f}]"
             )
         self.data[self.outcome] = y
 
@@ -628,18 +628,21 @@ class QCAEngineBase:
         mask = self.data[self.case_id].duplicated()
         if mask.any():
             dupes = self.data[self.case_id][mask].unique().tolist()
-            raise ValueError(f"case_id '{self.case_id}' に重複があります: {dupes}")
+            raise ValueError(
+                f"case_id '{self.case_id}' contains duplicate values: {dupes}"
+            )
 
     def _check_condition_overlap(self) -> None:
         overlap = set(self.set_conditions) & set(self.multivalue_conditions)
         if overlap:
             raise ValueError(
-                f"set_conditions と multivalue_conditions に重複カラムがあります: "
+                "set_conditions and multivalue_conditions contain overlapping "
+                "columns: "
                 f"{sorted(overlap)}"
             )
 
     # ------------------------------------------------------------------
-    # リテラル生成
+    # Literal generation
     # ------------------------------------------------------------------
 
     def _all_literals(
@@ -673,7 +676,7 @@ class QCAEngineBase:
         return sorted(unique_vals, key=_sort_key)
 
     # ------------------------------------------------------------------
-    # 矛盾検出
+    # Contradiction detection
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -699,7 +702,7 @@ class QCAEngineBase:
         return False
 
     # ------------------------------------------------------------------
-    # メンバーシップ計算
+    # Membership calculation
     # ------------------------------------------------------------------
 
     def conjunction_membership(
@@ -708,14 +711,15 @@ class QCAEngineBase:
     ) -> pd.Series:
         """Compute fuzzy membership for a conjunction."""
         if not literals:
-            raise ValueError("literals は空にできません。少なくとも1件必要です。")
+            raise ValueError("literals cannot be empty; provide at least one literal.")
 
         if self._is_contradictory(literals):
             labels = [lit.label() for lit in literals]
             raise ValueError(
-                f"矛盾する conjunction です: {labels}\n"
-                f"同名の正・否定 (A かつ ~A) または "
-                f"同一多値条件の複数値 (TYPE=1 かつ TYPE=2) が含まれています。"
+                f"Contradictory conjunction: {labels}\n"
+                "It contains both positive and negated forms of a condition "
+                "(A and ~A), or multiple values of the same multi-value "
+                "condition (TYPE=1 and TYPE=2)."
             )
 
         memberships = [lit.membership(self.data) for lit in literals]
@@ -727,13 +731,13 @@ class QCAEngineBase:
     ) -> pd.Series:
         """Compute fuzzy membership for a disjunction."""
         if not terms:
-            raise ValueError("terms は空にできません。少なくとも1件必要です。")
+            raise ValueError("terms cannot be empty; provide at least one term.")
 
         term_memberships = [self.conjunction_membership(term) for term in terms]
         return pd.concat(term_memberships, axis=1).max(axis=1)
 
     # ------------------------------------------------------------------
-    # 十分性評価
+    # Sufficiency evaluation
     # ------------------------------------------------------------------
 
     def evaluate_sufficiency(
@@ -774,7 +778,7 @@ class QCAEngineBase:
         x_sum = float(x_arr.sum())
         y_sum = float(y_arr.sum())
 
-        # 実質的なケースが存在しない場合
+        # No substantively relevant cases.
         if n_cases_in == 0 or np.isclose(x_sum, 0.0, atol=ZERO_EPSILON):
             return SufficiencyResult(
                 antecedent=label,
@@ -792,7 +796,7 @@ class QCAEngineBase:
             min_xy_sum / y_sum if not np.isclose(y_sum, 0.0, atol=ZERO_EPSILON) else 0.0
         )
 
-        # unique coverage の計算
+        # Calculate unique coverage.
         unique_coverage: float | None = None
         if solution_coverage is not None:
             s_arr = solution_coverage.to_numpy(dtype=float)
@@ -819,7 +823,7 @@ class QCAEngineBase:
         )
 
     # ------------------------------------------------------------------
-    # 必要性評価
+    # Necessity evaluation
     # ------------------------------------------------------------------
 
     def evaluate_necessity(
@@ -852,7 +856,7 @@ class QCAEngineBase:
         )
 
     # ------------------------------------------------------------------
-    # Unique coverage の計算
+    # Unique coverage calculation
     # ------------------------------------------------------------------
 
     def compute_solution_coverages(
@@ -869,7 +873,7 @@ class QCAEngineBase:
             if other_terms:
                 solution_without = self.disjunction_membership(other_terms)
             else:
-                # 解が1項のみ: 残余解 = ゼロベクトル
+                # Single-term solution: the residual solution is a zero vector.
                 solution_without = pd.Series(
                     np.zeros(self.n_cases, dtype=float),
                     index=self.data.index,
@@ -885,7 +889,7 @@ class QCAEngineBase:
         return results
 
     # ------------------------------------------------------------------
-    # 網羅探索
+    # Exhaustive search
     # ------------------------------------------------------------------
 
     def search_sufficient_configurations(
@@ -899,15 +903,15 @@ class QCAEngineBase:
         """Search candidate sufficient configurations."""
         all_literals = self._all_literals(include_negations=include_negations)
 
-        # 事前フィルタ: 単体で min_cases を満たさないリテラルを除外
+        # Pre-filter literals that do not meet min_cases individually.
         viable_literals = [
             lit for lit in all_literals if self._n_cases_in(lit) >= min_cases
         ]
 
         if not viable_literals:
             warnings.warn(
-                f"min_cases={min_cases} を満たすリテラルが存在しません。"
-                "min_cases を下げるか、データを確認してください。",
+                f"No literals satisfy min_cases={min_cases}. "
+                "Lower min_cases or inspect the data.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -933,11 +937,11 @@ class QCAEngineBase:
 
         if not all_results:
             warnings.warn(
-                f"閾値を満たす十分条件が見つかりませんでした。"
+                "No sufficient conditions satisfy the requested thresholds. "
                 f"(min_consistency={min_consistency}, "
                 f"min_coverage={min_coverage}, "
                 f"min_cases={min_cases})\n"
-                "閾値を下げるか max_depth を増やすことを検討してください。",
+                "Consider lowering the thresholds or increasing max_depth.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -967,10 +971,10 @@ class QCAEngineBase:
 
         if not all_results:
             warnings.warn(
-                f"閾値を満たす必要条件が見つかりませんでした。"
+                "No necessary conditions satisfy the requested thresholds. "
                 f"(min_consistency={min_consistency}, "
                 f"min_coverage={min_coverage})\n"
-                "閾値を下げることを検討してください。",
+                "Consider lowering the thresholds.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -984,7 +988,7 @@ class QCAEngineBase:
         ).reset_index(drop=True)
 
     # ------------------------------------------------------------------
-    # 真理表の構築
+    # Truth-table construction
     # ------------------------------------------------------------------
 
     def build_truth_table(
@@ -994,7 +998,7 @@ class QCAEngineBase:
         """Build a QCA truth table."""
         work = self.data.copy()
 
-        # set_conditions を二値化（グループ化専用の一時列）
+        # Binarize set conditions into temporary grouping columns.
         crisp_col_map: dict[str, str] = {}
         for c in self.set_conditions:
             col = f"__crisp_{c}"
@@ -1011,18 +1015,18 @@ class QCAEngineBase:
         for keys, group_idx in work.groupby(
             group_cols, dropna=False, sort=True
         ).groups.items():
-            # groupby のキーが単一要素のとき tuple でなくなるため正規化
+            # Normalize single-element groupby keys to tuples.
             if not isinstance(keys, tuple):
                 keys = (keys,)
 
-            # 構成辞書を作成（元のカラム名をキーとする）
+            # Build the configuration using the original column names.
             config = self._keys_to_config(keys)
 
             group_data = self.data.loc[group_idx]
             y_vals = group_data[self.outcome].astype(float)
             outcome_mean = float(y_vals.mean())
 
-            # 行一貫性スコア: 元のファジィスコアで計算
+            # Calculate row consistency using the original fuzzy scores.
             row_consist = self._calc_row_consistency(config, group_idx, y_vals)
 
             case_ids = group_data[self.case_id].astype(str).tolist()
@@ -1071,8 +1075,8 @@ class QCAEngineBase:
         """Compute row-level truth-table consistency."""
         config_literals = self._config_to_literals(config)
 
-        # conjunction_membership は self.data 全体に対して計算し、
-        # group_idx でグループに属するケースのみを取り出す
+        # Compute conjunction membership over all data, then select cases in
+        # the current group using group_idx.
         x_vals = (
             self.conjunction_membership(config_literals).loc[group_idx].astype(float)
         )
@@ -1100,7 +1104,7 @@ class QCAEngineBase:
         return literals
 
     # ------------------------------------------------------------------
-    # 内部ユーティリティ
+    # Internal utilities
     # ------------------------------------------------------------------
 
     def _n_cases_in(self, lit: SetLiteral | MultiValueLiteral) -> int:

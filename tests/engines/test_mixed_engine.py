@@ -159,7 +159,7 @@ class TestMixedQCAInit:
 
 class TestMixedQCAValidation:
     def test_missing_column_raises(self, base_df):
-        with pytest.raises(ValueError, match="必須カラム"):
+        with pytest.raises(ValueError, match="Required columns"):
             MixedQCA(base_df, "case", ["nonexistent"], [], "outcome")
 
     def test_set_condition_out_of_range_raises(self, base_df):
@@ -177,11 +177,11 @@ class TestMixedQCAValidation:
     def test_duplicate_case_id_raises(self, base_df):
         base_df = base_df.copy()
         base_df.loc[0, "case"] = "B"  # B が重複
-        with pytest.raises(ValueError, match="重複"):
+        with pytest.raises(ValueError, match="duplicate values"):
             MixedQCA(base_df, "case", ["skill", "resources"], ["region"], "outcome")
 
     def test_condition_overlap_raises(self, base_df):
-        with pytest.raises(ValueError, match="重複カラム"):
+        with pytest.raises(ValueError, match="overlapping columns"):
             MixedQCA(
                 base_df,
                 "case",
@@ -193,11 +193,11 @@ class TestMixedQCAValidation:
     def test_non_numeric_set_condition_raises(self, base_df):
         base_df = base_df.copy()
         base_df["skill"] = "high"
-        with pytest.raises(TypeError, match="数値に変換"):
+        with pytest.raises(TypeError, match="converted to numeric"):
             MixedQCA(base_df, "case", ["skill", "resources"], ["region"], "outcome")
 
     def test_pyqca_schema_requires_condition_types(self, base_df):
-        with pytest.raises(ValueError, match="conditions と condition_types"):
+        with pytest.raises(ValueError, match="conditions and condition_types"):
             MixedQCA(
                 data=base_df,
                 case_id="case",
@@ -206,7 +206,7 @@ class TestMixedQCAValidation:
             )
 
     def test_pyqca_schema_rejects_unknown_condition_type(self, base_df):
-        with pytest.raises(ValueError, match="未知の型"):
+        with pytest.raises(ValueError, match="unknown type"):
             MixedQCA(
                 data=base_df,
                 case_id="case",
@@ -216,7 +216,7 @@ class TestMixedQCAValidation:
             )
 
     def test_pyqca_schema_rejects_legacy_mix(self, base_df):
-        with pytest.raises(ValueError, match="同時指定"):
+        with pytest.raises(ValueError, match="cannot be combined"):
             MixedQCA(
                 data=base_df,
                 case_id="case",
@@ -227,7 +227,7 @@ class TestMixedQCAValidation:
             )
 
     def test_pyqca_schema_rejects_extra_condition_type_key(self, base_df):
-        with pytest.raises(ValueError, match="含まれない"):
+        with pytest.raises(ValueError, match="not present in conditions"):
             MixedQCA(
                 data=base_df,
                 case_id="case",
@@ -272,11 +272,11 @@ class TestConjunctionMembership:
         pd.testing.assert_series_equal(result, expected, check_names=False)
 
     def test_empty_raises(self, model):
-        with pytest.raises(ValueError, match="空にできません"):
+        with pytest.raises(ValueError, match="cannot be empty"):
             model.conjunction_membership([])
 
     def test_contradictory_raises(self, model):
-        with pytest.raises(ValueError, match="矛盾"):
+        with pytest.raises(ValueError, match="Contradictory"):
             model.conjunction_membership(
                 [SetLiteral("skill"), SetLiteral("skill", True)]
             )
@@ -303,7 +303,7 @@ class TestDisjunctionMembership:
         pd.testing.assert_series_equal(result, expected)
 
     def test_empty_raises(self, model):
-        with pytest.raises(ValueError, match="空にできません"):
+        with pytest.raises(ValueError, match="cannot be empty"):
             model.disjunction_membership([])
 
 

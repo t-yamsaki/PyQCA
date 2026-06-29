@@ -11,8 +11,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from qca import __version__  # noqa: E402
 
 project = "PyQCA"
-author = "taishi-yamasaki"
-copyright = "2026, taishi-yamasaki"
+author = "Taishi Yamasaki"
+copyright = "2026, Taishi Yamasaki"
 version = __version__
 release = __version__
 
