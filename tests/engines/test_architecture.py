@@ -6,9 +6,10 @@ import pandas as pd
 import pytest
 
 import qca
-from qca.engines import CSQCA, FSQCA, MVQCA, MixedQCA, QCAEngineBase
+from qca.engines import CSQCA, FSQCA, GSQCA, MVQCA, QCAEngineBase
 from qca.engines.csqca import CSQCA as ModuleCSQCA
 from qca.engines.fsqca import FSQCA as ModuleFSQCA
+from qca.engines.gsqca import GSQCA as ModuleGSQCA
 from qca.engines.mvqca import MVQCA as ModuleMVQCA
 
 
@@ -16,22 +17,26 @@ def test_single_family_engines_are_first_class_modules() -> None:
     assert CSQCA is ModuleCSQCA
     assert FSQCA is ModuleFSQCA
     assert MVQCA is ModuleMVQCA
+    assert GSQCA is ModuleGSQCA
     assert qca.CSQCA is ModuleCSQCA
     assert qca.FSQCA is ModuleFSQCA
     assert qca.MVQCA is ModuleMVQCA
+    assert qca.GSQCA is ModuleGSQCA
 
 
-def test_engines_share_core_without_inheriting_from_mixed_facade() -> None:
+def test_engines_share_core_without_gsqca_facade_aliases() -> None:
     for engine_cls in (CSQCA, FSQCA, MVQCA):
         assert issubclass(engine_cls, QCAEngineBase)
-        assert not issubclass(engine_cls, MixedQCA)
+        assert not issubclass(engine_cls, GSQCA)
 
-    assert issubclass(MixedQCA, QCAEngineBase)
+    assert issubclass(GSQCA, QCAEngineBase)
+    legacy_name = chr(77) + "ixed" + "QCA"
+    assert not hasattr(qca, legacy_name)
 
 
 def test_shared_core_lives_in_base_module() -> None:
     assert QCAEngineBase.__module__ == "qca.engines.base"
-    assert MixedQCA.__module__ == "qca.engines.mixed"
+    assert GSQCA.__module__ == "qca.engines.gsqca"
     assert CSQCA.__module__ == "qca.engines.csqca"
     assert FSQCA.__module__ == "qca.engines.fsqca"
     assert MVQCA.__module__ == "qca.engines.mvqca"

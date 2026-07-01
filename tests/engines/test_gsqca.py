@@ -1,4 +1,4 @@
-"""Phase 10: README Roadmap v0.2 MixedQCA acceptance tests."""
+"""GSQCA high-level workflow acceptance tests."""
 
 from __future__ import annotations
 
@@ -8,12 +8,12 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from qca import ConditionSpec, MixedQCA, condition_specs_from_schema
+from qca import GSQCA, ConditionSpec, condition_specs_from_schema
 from qca.results import QCAFitResult
 
 
 @pytest.fixture
-def mixed_v02_df() -> pd.DataFrame:
+def gsqca_v02_df() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "case": ["A", "B", "C", "D", "E", "F"],
@@ -25,7 +25,7 @@ def mixed_v02_df() -> pd.DataFrame:
     )
 
 
-def mixed_specs() -> list[ConditionSpec]:
+def gsqca_specs() -> list[ConditionSpec]:
     return [
         ConditionSpec("policy", "crisp", domain=(0.0, 1.0), calibrated=True),
         ConditionSpec("capacity", "fuzzy", domain=(0.0, 1.0), calibrated=True),
@@ -33,7 +33,7 @@ def mixed_specs() -> list[ConditionSpec]:
     ]
 
 
-def mixed_schema_records() -> list[dict[str, object]]:
+def gsqca_schema_records() -> list[dict[str, object]]:
     return [
         {
             "name": "policy",
@@ -56,12 +56,12 @@ def mixed_schema_records() -> list[dict[str, object]]:
     ]
 
 
-def test_v02_accepts_unified_condition_specs(mixed_v02_df) -> None:
-    model = MixedQCA(
-        data=mixed_v02_df,
+def test_v02_accepts_unified_condition_specs(gsqca_v02_df) -> None:
+    model = GSQCA(
+        data=gsqca_v02_df,
         case_id="case",
         outcome="outcome",
-        condition_specs=mixed_specs(),
+        condition_specs=gsqca_specs(),
     )
 
     assert model.conditions == ["policy", "capacity", "region"]
@@ -82,13 +82,13 @@ def test_v02_accepts_unified_condition_specs(mixed_v02_df) -> None:
     assert bool(schema.loc["region", "calibrated"]) is False
 
 
-def test_v02_accepts_mapping_and_dataframe_condition_schema(mixed_v02_df) -> None:
-    records = mixed_schema_records()
+def test_v02_accepts_mapping_and_dataframe_condition_schema(gsqca_v02_df) -> None:
+    records = gsqca_schema_records()
 
     from_records = condition_specs_from_schema(records)
     from_dataframe = condition_specs_from_schema(pd.DataFrame(records))
-    model = MixedQCA.from_schema(
-        data=mixed_v02_df,
+    model = GSQCA.from_schema(
+        data=gsqca_v02_df,
         case_id="case",
         outcome="outcome",
         schema=pd.DataFrame(records),
@@ -96,9 +96,9 @@ def test_v02_accepts_mapping_and_dataframe_condition_schema(mixed_v02_df) -> Non
 
     assert [spec.kind for spec in from_records] == ["crisp", "fuzzy", "multi"]
     assert [spec.kind for spec in from_dataframe] == ["crisp", "fuzzy", "multi"]
-    assert model.workflow == "mixed-crisp-fuzzy-multi"
+    assert model.workflow == "GSQCA-crisp-fuzzy-multi"
     assert model.workflow_kinds == ("crisp", "fuzzy", "multi")
-    assert model.is_mixed_workflow
+    assert model.is_generalized_workflow
     assert model.has_crisp_conditions
     assert model.has_fuzzy_conditions
     assert model.has_multivalue_conditions
@@ -106,46 +106,46 @@ def test_v02_accepts_mapping_and_dataframe_condition_schema(mixed_v02_df) -> Non
     assert tuple(model.condition_spec_map["region"].domain) == ("north", "south")
 
 
-def test_v02_from_condition_specs_classmethod(mixed_v02_df) -> None:
-    model = MixedQCA.from_condition_specs(
-        data=mixed_v02_df,
+def test_v02_from_condition_specs_classmethod(gsqca_v02_df) -> None:
+    model = GSQCA.from_condition_specs(
+        data=gsqca_v02_df,
         case_id="case",
         outcome="outcome",
-        condition_specs=mixed_specs(),
+        condition_specs=gsqca_specs(),
     )
 
-    assert isinstance(model, MixedQCA)
+    assert isinstance(model, GSQCA)
     assert model.condition_spec_map["region"].is_multi
 
 
 def test_v02_rejects_schema_alias_combined_with_condition_specs(
-    mixed_v02_df,
+    gsqca_v02_df,
 ) -> None:
     with pytest.raises(ValueError, match="schema and condition_specs"):
-        MixedQCA(
-            data=mixed_v02_df,
+        GSQCA(
+            data=gsqca_v02_df,
             case_id="case",
             outcome="outcome",
-            schema=mixed_schema_records(),
-            condition_specs=mixed_specs(),
+            schema=gsqca_schema_records(),
+            condition_specs=gsqca_specs(),
         )
 
 
-def test_v02_rejects_mixed_schema_styles(mixed_v02_df) -> None:
+def test_v02_rejects_combined_schema_styles(gsqca_v02_df) -> None:
     with pytest.raises(ValueError, match="condition_specs cannot be combined"):
-        MixedQCA(
-            data=mixed_v02_df,
+        GSQCA(
+            data=gsqca_v02_df,
             case_id="case",
             outcome="outcome",
-            condition_specs=mixed_specs(),
+            condition_specs=gsqca_specs(),
             conditions=["policy"],
             condition_types={"policy": "crisp"},
         )
 
 
-def test_v02_high_level_api_runs_mixed_workflow(mixed_v02_df) -> None:
-    model = MixedQCA(
-        data=mixed_v02_df,
+def test_v02_high_level_api_runs_gsqca_workflow(gsqca_v02_df) -> None:
+    model = GSQCA(
+        data=gsqca_v02_df,
         case_id="case",
         outcome="outcome",
         conditions=["policy", "capacity", "region"],
@@ -166,15 +166,15 @@ def test_v02_high_level_api_runs_mixed_workflow(mixed_v02_df) -> None:
         )
 
     assert isinstance(result, QCAFitResult)
-    assert result.qca_type == "MixedQCA"
+    assert result.qca_type == "GSQCA"
     assert result.outcome == "outcome"
     assert result.case_id == "case"
     assert isinstance(result.truth_table, pd.DataFrame)
     assert isinstance(result.solutions, pd.DataFrame)
     assert isinstance(result.case_coverage, pd.DataFrame)
     assert result.qm_solution.condition_names == ["policy", "capacity", "region"]
-    assert result.workflow == "mixed-crisp-fuzzy-multi"
-    assert result.settings["workflow"] == "mixed-crisp-fuzzy-multi"
+    assert result.workflow == "GSQCA-crisp-fuzzy-multi"
+    assert result.settings["workflow"] == "GSQCA-crisp-fuzzy-multi"
 
     schema = result.condition_schema.set_index("name")
     assert schema.loc["policy", "kind"] == "crisp"
@@ -182,12 +182,12 @@ def test_v02_high_level_api_runs_mixed_workflow(mixed_v02_df) -> None:
     assert schema.loc["region", "kind"] == "multi"
 
 
-def test_v02_formula_export(mixed_v02_df) -> None:
-    model = MixedQCA.from_condition_specs(
-        data=mixed_v02_df,
+def test_v02_formula_export(gsqca_v02_df) -> None:
+    model = GSQCA.from_condition_specs(
+        data=gsqca_v02_df,
         case_id="case",
         outcome="outcome",
-        condition_specs=mixed_specs(),
+        condition_specs=gsqca_specs(),
     )
 
     with warnings.catch_warnings():
@@ -210,12 +210,12 @@ def test_v02_formula_export(mixed_v02_df) -> None:
         result.to_formula("minimal")
 
 
-def test_v02_formula_export_writes_selected_formula(mixed_v02_df) -> None:
-    model = MixedQCA.from_schema(
-        data=mixed_v02_df,
+def test_v02_formula_export_writes_selected_formula(gsqca_v02_df) -> None:
+    model = GSQCA.from_schema(
+        data=gsqca_v02_df,
         case_id="case",
         outcome="outcome",
-        schema=mixed_schema_records(),
+        schema=gsqca_schema_records(),
     )
 
     with warnings.catch_warnings():
@@ -239,13 +239,13 @@ def test_v02_formula_export_writes_selected_formula(mixed_v02_df) -> None:
 
 
 def test_v02_markdown_export_includes_schema_and_formulas(
-    mixed_v02_df,
+    gsqca_v02_df,
 ) -> None:
-    model = MixedQCA.from_condition_specs(
-        data=mixed_v02_df,
+    model = GSQCA.from_condition_specs(
+        data=gsqca_v02_df,
         case_id="case",
         outcome="outcome",
-        condition_specs=mixed_specs(),
+        condition_specs=gsqca_specs(),
     )
 
     with warnings.catch_warnings():

@@ -1,4 +1,4 @@
-"""フェーズ4: minimizer/ パッケージの動作確認テスト"""
+"""Minimizer package behavior tests."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from qca._constants import DONT_CARE
-from qca.engines.mixed import MixedQCA
+from qca.engines.gsqca import GSQCA
 from qca.minimizers.algorithms import (
     build_coverage_table,
     can_merge,
@@ -29,7 +29,6 @@ from qca.minimizers.remainder import (
 from qca.results import QCAFitResult
 
 # ---------------------------------------------------------------------------
-# フィクスチャ
 # ---------------------------------------------------------------------------
 
 
@@ -44,7 +43,7 @@ def all_patterns_abc(binary_domains):
 
 
 @pytest.fixture
-def mixed_df() -> pd.DataFrame:
+def gsqca_df() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "case": ["A", "B", "C", "D", "E", "F", "G", "H"],
@@ -66,9 +65,9 @@ def mixed_df() -> pd.DataFrame:
 
 
 @pytest.fixture
-def model(mixed_df) -> MixedQCA:
-    return MixedQCA(
-        data=mixed_df,
+def model(gsqca_df) -> GSQCA:
+    return GSQCA(
+        data=gsqca_df,
         case_id="case",
         set_conditions=["skill", "resources"],
         multivalue_conditions=["region"],
@@ -77,7 +76,6 @@ def model(mixed_df) -> MixedQCA:
 
 
 # ===========================================================================
-# Implicant のテスト
 # ===========================================================================
 
 
@@ -103,7 +101,7 @@ class TestImplicant:
         assert not imp.covers(5)
 
     def test_subsumes_true(self):
-        """より一般的なインプリカントが特定的なものを包含する。"""
+        """Regression coverage."""
         general = Implicant(
             pattern=(1, DONT_CARE),
             covered=frozenset([2, 3]),
@@ -150,7 +148,6 @@ class TestImplicant:
 
 
 # ===========================================================================
-# QMSolution のテスト
 # ===========================================================================
 
 
@@ -171,7 +168,7 @@ class TestQMSolution:
         assert "complexity" in df.columns
 
     def test_summary_order(self):
-        """complex → parsimonious → intermediate の順であること。"""
+        """Regression coverage."""
         sol = QMSolution(
             condition_names=["A", "B"],
             complex_solution=[Implicant(pattern=(1, 0), covered=frozenset([2]))],
@@ -202,7 +199,6 @@ class TestQMSolution:
 
 
 # ===========================================================================
-# can_merge のテスト
 # ===========================================================================
 
 
@@ -218,17 +214,38 @@ class TestCanMerge:
         assert merged is None
 
     def test_no_merge_multivalue(self):
-        """多値条件の位置は差異があってもマージ不可。"""
+        """Regression coverage."""
         ok, merged = can_merge((1, "north"), (1, "south"), [False, True])
         assert not ok
+        assert merged is None
+
+    def test_merge_multivalue_with_declared_domain(self):
+        ok, merged = can_merge(
+            (1, "north"),
+            (1, "south"),
+            [False, True],
+            condition_domains=[[0, 1], ["north", "south"]],
+        )
+        assert ok
+        assert merged == (1, DONT_CARE)
+
+    def test_merge_multivalue_partial_domain(self):
+        ok, merged = can_merge(
+            (1, "north"),
+            (1, "south"),
+            [False, True],
+            condition_domains=[[0, 1], ["north", "south", "east"]],
+        )
+        assert ok
+        assert merged == (1, frozenset(["north", "south"]))
 
     def test_no_merge_wildcard_mismatch(self):
-        """ワイルドカード状態が異なる位置はマージ不可。"""
+        """Regression coverage."""
         ok, merged = can_merge((DONT_CARE, 0), (1, 0), [False, False])
         assert not ok
 
     def test_merge_with_existing_wildcard(self):
-        """既にワイルドカードを含むパターンのマージ。"""
+        """Regression coverage."""
         ok, merged = can_merge(
             (DONT_CARE, 0, 0), (DONT_CARE, 1, 0), [False, False, False]
         )
@@ -240,13 +257,12 @@ class TestCanMerge:
         assert not ok
 
     def test_identical_patterns_no_merge(self):
-        """同一パターンは差異がないのでマージ不可（0箇所の差異）。"""
+        """Regression coverage."""
         ok, _ = can_merge((1, 0), (1, 0), [False, False])
         assert not ok
 
 
 # ===========================================================================
-# generate_all_minterms のテスト
 # ===========================================================================
 
 
@@ -275,19 +291,17 @@ class TestGenerateAllMinterms:
 
     def test_order_matches_condition_names(self):
         result = generate_all_minterms(["B", "A"], {"A": [0, 1], "B": [0, 1]})
-        # B が先、A が後
         assert result[0] == (0, 0)  # B=0, A=0
         assert result[1] == (0, 1)  # B=0, A=1
 
 
 # ===========================================================================
-# quine_mccluskey のテスト
 # ===========================================================================
 
 
 class TestQuineMcCluskey:
     def test_single_minterm(self, all_patterns_abc):
-        """単一ミンタームは自分自身がプライム含意節。"""
+        """Regression coverage."""
         result = quine_mccluskey(
             minterms=[7],  # (1,1,1)
             all_patterns=all_patterns_abc,
@@ -297,7 +311,7 @@ class TestQuineMcCluskey:
         assert result[0].pattern == (1, 1, 1)
 
     def test_two_adjacent_minterms_merge(self, all_patterns_abc):
-        """隣接する2ミンタームがマージされること。"""
+        """Regression coverage."""
         # (1,1,0)=6, (1,1,1)=7 → (1,1,*)
         result = quine_mccluskey(
             minterms=[6, 7],
@@ -309,8 +323,7 @@ class TestQuineMcCluskey:
         assert result[0].covered == frozenset([6, 7])
 
     def test_dont_care_allows_further_merge(self, all_patterns_abc):
-        """don't care を使うことでさらなるマージが可能になる。"""
-        # ポジティブ: (1,1,1)=7
+        """Regression coverage."""
         # don't care: (1,1,0)=6
         # → (1,1,*)
         result = quine_mccluskey(
@@ -331,7 +344,7 @@ class TestQuineMcCluskey:
         assert result == []
 
     def test_all_covered_positive_in_covered(self, all_patterns_abc):
-        """全プライム含意節のカバレッジはポジティブ行のみを含む。"""
+        """Regression coverage."""
         result = quine_mccluskey(
             minterms=[6, 7],
             all_patterns=all_patterns_abc,
@@ -339,43 +352,39 @@ class TestQuineMcCluskey:
             dont_care_indices=[4, 5],
         )
         for imp in result:
-            # don't care インデックス(4,5)が covered に含まれないこと
             assert not (imp.covered & {4, 5})
 
-    def test_multivalue_no_merge(self):
-        """多値条件が異なる場合はマージされないこと。"""
+    def test_multivalue_domain_exhaustion_merges(self):
+        """Regression coverage."""
         patterns = generate_all_minterms(
             ["A", "region"],
             {"A": [0, 1], "region": ["north", "south"]},
         )
-        # A=1, region=north (idx=2) と A=1, region=south (idx=3)
         result = quine_mccluskey(
             minterms=[2, 3],
             all_patterns=patterns,
             is_multivalue=[False, True],
         )
-        # マージされないので2つのプライム含意節が残る
-        assert len(result) == 2
+        assert len(result) == 1
+        assert result[0].pattern == (1, DONT_CARE)
 
 
 # ===========================================================================
-# select_essential_prime_implicants のテスト
 # ===========================================================================
 
 
 class TestSelectEssential:
     def test_single_essential(self, all_patterns_abc):
-        """1つのプライム含意節しかカバーしないミンタームが必須を決定する。"""
+        """Regression coverage."""
         pi = [
             Implicant(pattern=(1, 1, DONT_CARE), covered=frozenset([6, 7])),
             Implicant(pattern=(DONT_CARE, 1, 1), covered=frozenset([3, 7])),
         ]
         selected = select_essential_prime_implicants(pi, [6, 7])
-        # m6 は最初の PI のみがカバー → 必須
         assert any(imp.pattern == (1, 1, DONT_CARE) for imp in selected)
 
     def test_covers_all_minterms(self, all_patterns_abc):
-        """選択後は全ミンタームがカバーされること。"""
+        """Regression coverage."""
         pi = quine_mccluskey(
             minterms=[0, 1, 2, 3],
             all_patterns=all_patterns_abc,
@@ -392,7 +401,7 @@ class TestSelectEssential:
         assert select_essential_prime_implicants([], [1, 2]) == []
 
     def test_greedy_prefers_low_complexity(self):
-        """greedy 補完では complexity が小さいものを優先すること。"""
+        """Regression coverage."""
         pi = [
             Implicant(
                 pattern=(1, DONT_CARE, DONT_CARE),
@@ -403,15 +412,11 @@ class TestSelectEssential:
                 covered=frozenset([6, 7]),
             ),
         ]
-        # m4, m5 は最初の PI のみがカバー → 必須
-        # m6, m7 は両方がカバーできる
         selected = select_essential_prime_implicants(pi, [4, 5, 6, 7])
-        # complexity=1 の PI が選ばれること
         assert any(imp.complexity() == 1 for imp in selected)
 
 
 # ===========================================================================
-# classify_truth_table_rows のテスト
 # ===========================================================================
 
 
@@ -460,16 +465,15 @@ class TestClassifyTruthTableRows:
         pos, neg, rem, con = classify_truth_table_rows(
             rows, patterns, p2i, cnames, [False, False], 0.75, 0.75
         )
-        # 観察されていない (0,0),(0,1),(1,0) が残余
         assert len(rem) == 3
-        assert 3 not in rem  # (1,1) は観察済み
+        assert 3 not in rem
 
     def test_contradiction_excluded(self, binary_setup):
-        """同一パターンが正・負両方に分類された場合は矛盾行として除外。"""
+        """Regression coverage."""
         cnames, patterns, p2i = binary_setup
         rows = [
             self._make_row({"A": 1, "B": 1}, 0.85, 0.82),  # positive
-            self._make_row({"A": 1, "B": 1}, 0.10, 0.12),  # negative → 矛盾
+            self._make_row({"A": 1, "B": 1}, 0.10, 0.12),
         ]
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -483,7 +487,6 @@ class TestClassifyTruthTableRows:
 
 
 # ===========================================================================
-# is_theory_consistent / filter 関数のテスト
 # ===========================================================================
 
 
@@ -499,15 +502,15 @@ class TestRemainderFilters:
         assert not is_theory_consistent(
             (1, 0, "north"),
             ["skill", "resources", "region"],
-            {"skill": 1, "resources": 1},  # resources=1 期待だが 0
+            {"skill": 1, "resources": 1},
         )
 
     def test_is_theory_consistent_partial_spec(self):
-        """一部の条件のみ指定された場合、未指定は制約なし。"""
+        """Regression coverage."""
         assert is_theory_consistent(
             (1, 0, "south"),
             ["skill", "resources", "region"],
-            {"skill": 1},  # skill のみ指定
+            {"skill": 1},
         )
 
     def test_filter_safe_remainders(self):
@@ -550,7 +553,6 @@ class TestRemainderFilters:
             condition_names=["skill", "resources"],
             directional_expectations={"skill": 1, "resources": 1},
         )
-        # skill=1, resources=1 の期待: (1,1)=3 のみが合致
         assert result == [3]
 
     def test_filter_theory_consistent_excludes_negative(self):
@@ -560,7 +562,7 @@ class TestRemainderFilters:
         )
         result = filter_theory_consistent_remainders(
             remainder_indices=[2, 3],
-            negative_indices=[3],  # 理論整合でもネガティブなら除外
+            negative_indices=[3],
             contradiction_indices=[],
             all_patterns=patterns,
             condition_names=["skill", "resources"],
@@ -570,13 +572,11 @@ class TestRemainderFilters:
 
 
 # ===========================================================================
-# QCAMinimizer のテスト
 # ===========================================================================
 
 
 class TestQCAMinimizer:
     # ------------------------------------------------------------------
-    # 初期化
     # ------------------------------------------------------------------
 
     def test_n_minterms_binary(self):
@@ -608,7 +608,6 @@ class TestQCAMinimizer:
         assert "n_minterms=4" in repr(minimizer)
 
     # ------------------------------------------------------------------
-    # minimize() の基本動作
     # ------------------------------------------------------------------
 
     @pytest.fixture
@@ -621,7 +620,7 @@ class TestQCAMinimizer:
 
     @pytest.fixture
     def mock_rows_positive(self):
-        """A=1 かつ B=1 のとき常にポジティブな単純な真理表。"""
+        """Regression coverage."""
         from dataclasses import dataclass
 
         @dataclass
@@ -648,7 +647,7 @@ class TestQCAMinimizer:
     def test_parsimonious_leq_complex_complexity(
         self, binary_minimizer, mock_rows_positive
     ):
-        """倹約解の総複雑度 ≤ 複雑解の総複雑度。"""
+        """Regression coverage."""
         solution = binary_minimizer.minimize(mock_rows_positive)
         complex_total = sum(imp.complexity() for imp in solution.complex_solution)
         parsimonious_total = sum(
@@ -659,7 +658,7 @@ class TestQCAMinimizer:
     def test_intermediate_between_complex_and_parsimonious(
         self, binary_minimizer, mock_rows_positive
     ):
-        """中間解の複雑度は複雑解以下かつ倹約解以上。"""
+        """Regression coverage."""
         solution = binary_minimizer.minimize(
             mock_rows_positive,
             directional_expectations={"A": 1, "B": 1},
@@ -676,12 +675,11 @@ class TestQCAMinimizer:
     def test_all_positive_minterms_covered_complex(
         self, binary_minimizer, mock_rows_positive
     ):
-        """複雑解は全ポジティブミンタームをカバーすること。"""
+        """Regression coverage."""
         solution = binary_minimizer.minimize(mock_rows_positive)
         covered = set()
         for imp in solution.complex_solution:
             covered |= imp.covered
-        # ポジティブ行: (1,1,1)=7, (1,1,0)=6
         assert {6, 7}.issubset(covered)
 
     def test_no_positive_rows_warns(self, binary_minimizer):
@@ -701,7 +699,7 @@ class TestQCAMinimizer:
     def test_directional_expectations_none_warns(
         self, binary_minimizer, mock_rows_positive
     ):
-        """方向性未指定の場合は警告が出て中間解=複雑解になること。"""
+        """Regression coverage."""
         with pytest.warns(UserWarning, match="directional_expectations"):
             solution = binary_minimizer.minimize(
                 mock_rows_positive,
@@ -712,7 +710,7 @@ class TestQCAMinimizer:
     def test_include_remainders_false_parsimonious_eq_complex(
         self, binary_minimizer, mock_rows_positive
     ):
-        """残余行不使用の場合、倹約解=複雑解。"""
+        """Regression coverage."""
         solution = binary_minimizer.minimize(
             mock_rows_positive,
             include_remainders_in_parsimonious=False,
@@ -743,7 +741,7 @@ class TestQCAMinimizer:
             assert "n_covered" in solution.coverage_table.columns
 
     def test_coverage_table_values_binary(self, binary_minimizer, mock_rows_positive):
-        """カバレッジ表の本体列は 0/1 のみ。"""
+        """Regression coverage."""
         solution = binary_minimizer.minimize(mock_rows_positive)
         if not solution.coverage_table.empty:
             minterm_cols = [
@@ -753,7 +751,6 @@ class TestQCAMinimizer:
             assert set(values).issubset({0, 1})
 
     # ------------------------------------------------------------------
-    # classify_rows (診断用)
     # ------------------------------------------------------------------
 
     def test_classify_rows_keys(self, binary_minimizer, mock_rows_positive):
@@ -768,7 +765,6 @@ class TestQCAMinimizer:
         assert len(result["positive"]) == 2
 
     # ------------------------------------------------------------------
-    # remainder_summary (診断用)
     # ------------------------------------------------------------------
 
     def test_remainder_summary_is_dataframe(self, binary_minimizer, mock_rows_positive):
@@ -795,7 +791,6 @@ class TestQCAMinimizer:
 
 
 # ===========================================================================
-# minimize_truth_table (MixedQCA 統合) のテスト
 # ===========================================================================
 
 
@@ -813,7 +808,7 @@ class TestMinimizeTruthTable:
         assert solution.condition_names == model.all_condition_names
 
     def test_complex_solution_labels_valid(self, model):
-        """複雑解の各項ラベルが空でないこと。"""
+        """Regression coverage."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             solution = minimize_truth_table(model, outcome_threshold=0.75)
@@ -830,12 +825,11 @@ class TestMinimizeTruthTable:
         df = solution.summary()
         if not df.empty:
             types = df["solution_type"].unique().tolist()
-            # 少なくとも複雑解と倹約解が含まれること
             assert "complex" in types
             assert "parsimonious" in types
 
     def test_with_directional_expectations(self, model):
-        """方向性指定あり: 中間解が導出されること。"""
+        """Regression coverage."""
         solution = minimize_truth_table(
             model,
             outcome_threshold=0.75,
@@ -848,7 +842,7 @@ class TestMinimizeTruthTable:
         assert isinstance(solution.intermediate_solution, list)
 
     def test_parsimonious_leq_complex(self, model):
-        """MixedQCA 統合でも複雑度の大小関係が保たれること。"""
+        """Regression coverage."""
         solution = minimize_truth_table(model, outcome_threshold=0.75)
         complex_total = sum(imp.complexity() for imp in solution.complex_solution)
         parsimonious_total = sum(
@@ -856,35 +850,40 @@ class TestMinimizeTruthTable:
         )
         assert parsimonious_total <= complex_total
 
-    def test_high_threshold_no_positive_warns(self, model):
-        """閾値が高すぎてポジティブ行なし → 警告 + 空解。"""
+    def test_high_threshold_no_positive_warns(self):
+        """Regression coverage."""
+        low_model = GSQCA(
+            data=pd.DataFrame(
+                {
+                    "case": ["a", "b"],
+                    "A": [1.0, 1.0],
+                    "outcome": [0.9, 0.9],
+                }
+            ),
+            case_id="case",
+            set_conditions=["A"],
+            outcome="outcome",
+        )
         with pytest.warns(UserWarning, match="positive rows"):
             solution = minimize_truth_table(
-                model,
-                outcome_threshold=0.99,
-                consistency_threshold=0.99,
+                low_model,
+                outcome_threshold=1.0,
+                consistency_threshold=1.0,
             )
         assert solution.complex_solution == []
         assert solution.n_positive == 0
 
 
 # ===========================================================================
-# エンドツーエンド統合テスト
 # ===========================================================================
 
 
 class TestEndToEnd:
-    """
-    MixedQCA → build_truth_table → QCAMinimizer → QMSolution
-    の全パイプラインを検証する。
-    """
+    """Regression coverage."""
 
     @pytest.fixture
     def simple_crisp_df(self) -> pd.DataFrame:
-        """
-        完全に決定的な crisp データ。
-        A=1 かつ B=1 → outcome=1、それ以外 → outcome=0。
-        """
+        """Regression coverage."""
         return pd.DataFrame(
             {
                 "case": ["c1", "c2", "c3", "c4"],
@@ -895,8 +894,8 @@ class TestEndToEnd:
         )
 
     @pytest.fixture
-    def crisp_model(self, simple_crisp_df) -> MixedQCA:
-        return MixedQCA(
+    def crisp_model(self, simple_crisp_df) -> GSQCA:
+        return GSQCA(
             data=simple_crisp_df,
             case_id="case",
             set_conditions=["A", "B"],
@@ -905,7 +904,7 @@ class TestEndToEnd:
         )
 
     def test_crisp_complex_solution_is_a_and_b(self, crisp_model):
-        """A=1 かつ B=1 が唯一のポジティブ行 → 複雑解 = A * B。"""
+        """Regression coverage."""
         solution = minimize_truth_table(
             crisp_model,
             outcome_threshold=0.75,
@@ -922,7 +921,7 @@ class TestEndToEnd:
         assert p <= c
 
     def test_crisp_solution_covers_positive_minterm(self, crisp_model):
-        """複雑解が (A=1, B=1) のミンタームをカバーすること。"""
+        """Regression coverage."""
         solution = minimize_truth_table(crisp_model, outcome_threshold=0.75)
         all_covered = set()
         for imp in solution.complex_solution:
@@ -930,8 +929,8 @@ class TestEndToEnd:
         # (1,1) = index 3 in [(0,0),(0,1),(1,0),(1,1)]
         assert len(all_covered) >= 1
 
-    def test_mixed_pipeline_no_error(self, model):
-        """MixedQCA (fuzzy + multivalue) で例外が発生しないこと。"""
+    def test_gsqca_pipeline_no_error(self, model):
+        """Regression coverage."""
         solution = minimize_truth_table(
             model,
             outcome_threshold=0.70,
@@ -972,7 +971,7 @@ class TestEndToEnd:
         assert reductions["intermediate"] >= 0
 
     def test_remainder_summary_integration(self, model):
-        """MixedQCA から QCAMinimizer を直接構築して残余行診断。"""
+        """Regression coverage."""
         minimizer = QCAMinimizer(
             condition_names=model.all_condition_names,
             is_multivalue={c: False for c in model.set_conditions}
@@ -995,10 +994,7 @@ class TestEndToEnd:
         assert "theory_consistent" in df.columns
 
     def test_pipeline_consistency_with_search(self, model):
-        """
-        QM 法の解と search_sufficient_configurations の結果が
-        矛盾しないこと（QM 法の解は十分性閾値を満たすはず）。
-        """
+        """Regression coverage."""
         solution = minimize_truth_table(
             model,
             outcome_threshold=0.70,
@@ -1012,37 +1008,32 @@ class TestEndToEnd:
             min_cases=1,
         )
 
-        # 複雑解の各項ラベルが探索結果に含まれるかチェック
         for imp in solution.complex_solution:
             label = imp.label(solution.condition_names)
             if label == "(tautology)":
                 continue
-            # 完全一致でなくとも、少なくとも antecedent 列に存在すること
             found = label in suf_df["antecedent"].values
             if not found:
-                # 一貫性を直接計算して閾値を満たすことを確認
                 from qca.core.literals import parse_conjunction
 
                 try:
                     lits = parse_conjunction(label)
                     res = model.evaluate_sufficiency(lits)
-                    # QM 法の解は理論的に一貫性を持つはず（0.5 以上）
                     assert res.consistency >= 0.5, (
-                        f"QM 解 '{label}' の consistency={res.consistency:.3f} "
-                        "が期待値を下回っています。"
+                        f"QM solution '{label}' has consistency={res.consistency:.3f}, "
+                        "which is below the expected threshold."
                     )
                 except Exception:
-                    pass  # parse に失敗した場合はスキップ
+                    pass
 
 
 # ===========================================================================
-# 境界値・エッジケースのテスト
 # ===========================================================================
 
 
 class TestEdgeCases:
     def test_all_positive_all_negative_no_solution(self):
-        """全行がポジティブの場合は論理空間全体が解となる。"""
+        """Regression coverage."""
         minimizer = QCAMinimizer(
             condition_names=["A", "B"],
             is_multivalue={},
@@ -1063,7 +1054,6 @@ class TestEdgeCases:
             MockRow({"A": 1, "B": 1}, 0.9, 0.9),
         ]
         solution = minimizer.minimize(rows, outcome_threshold=0.75)
-        # 全条件が don't care → 論理的トートロジー
         labels = [
             imp.label(solution.condition_names) for imp in solution.complex_solution
         ]
@@ -1073,7 +1063,7 @@ class TestEdgeCases:
         )
 
     def test_single_condition_binary(self):
-        """条件が1つだけの最小構成。"""
+        """Regression coverage."""
         minimizer = QCAMinimizer(
             condition_names=["A"],
             is_multivalue={},
@@ -1093,7 +1083,7 @@ class TestEdgeCases:
         assert solution.complex_solution[0].label(["A"]) == "A"
 
     def test_multivalue_only_condition(self):
-        """多値条件のみの構成（二値条件なし）。"""
+        """Regression coverage."""
         minimizer = QCAMinimizer(
             condition_names=["region"],
             is_multivalue={"region": True},
@@ -1112,13 +1102,12 @@ class TestEdgeCases:
             MockRow({"region": "south"}, 0.1, 0.12),
         ]
         solution = minimizer.minimize(rows, outcome_threshold=0.75)
-        # 多値条件はマージ不可なので複雑解 = region=north のみ
         assert len(solution.complex_solution) == 1
         label = solution.complex_solution[0].label(["region"])
         assert label == "region=north"
 
     def test_degenerate_all_dont_care_parsimonious(self):
-        """倹約解が全条件 don't care になるケース（論理的トートロジー）。"""
+        """Regression coverage."""
         minimizer = QCAMinimizer(
             condition_names=["A", "B"],
             is_multivalue={},
@@ -1132,7 +1121,6 @@ class TestEdgeCases:
             outcome_mean: float
             outcome_raw_consist: float
 
-        # ポジティブ: (1,1)=3 のみ、残余: (0,0),(0,1),(1,0) を全て don't care
         rows = [
             MockRow({"A": 1, "B": 1}, 0.9, 0.9),
             MockRow({"A": 0, "B": 0}, 0.1, 0.1),
@@ -1142,13 +1130,12 @@ class TestEdgeCases:
             outcome_threshold=0.75,
             include_remainders_in_parsimonious=True,
         )
-        # 倹約解は複雑解以下の複雑度
         c = sum(i.complexity() for i in solution.complex_solution)
         p = sum(i.complexity() for i in solution.parsimonious_solution)
         assert p <= c
 
     def test_implicant_pattern_immutable(self):
-        """Implicant は frozen なので変更不可。"""
+        """Regression coverage."""
         imp = Implicant(pattern=(1, 0), covered=frozenset([0]))
         with pytest.raises(FrozenInstanceError):
             imp.pattern = (0, 1)  # type: ignore
@@ -1163,11 +1150,10 @@ class TestEdgeCases:
             Implicant(pattern=(DONT_CARE, 1), covered=frozenset([1, 3])),
         ]
         df = build_coverage_table(pi, [1, 2, 3], ["A", "B"])
-        # 行数 = プライム含意節数、列数 = ミンターム数 + 2 (complexity, n_covered)
         assert df.shape == (2, 3 + 2)
 
     def test_deduplicate_implicants_same_pattern(self):
-        """同一パターンは covered を統合して1つになること。"""
+        """Regression coverage."""
         imps = [
             Implicant(pattern=(1, 0), covered=frozenset([2])),
             Implicant(pattern=(1, 0), covered=frozenset([3])),
@@ -1185,7 +1171,7 @@ class TestEdgeCases:
         assert len(result) == 2
 
 
-class TestMixedQCAFitResultIntegration:
+class TestGSQCAFitResultIntegration:
     def test_fit_standard_returns_fit_result(self, model):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -1236,9 +1222,9 @@ class TestMixedQCAFitResultIntegration:
         with pytest.raises(ValueError, match="Unsupported minimizer"):
             model.fit(minimizer="simulated_annealing")
 
-    def test_pyqca_schema_fit_uses_qmc_backend(self, mixed_df):
-        qca_model = MixedQCA(
-            data=mixed_df,
+    def test_pyqca_schema_fit_uses_qmc_backend(self, gsqca_df):
+        qca_model = GSQCA(
+            data=gsqca_df,
             outcome="outcome",
             conditions=["skill", "resources", "region"],
             condition_types={

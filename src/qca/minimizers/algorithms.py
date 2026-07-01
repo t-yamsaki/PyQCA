@@ -20,6 +20,7 @@ def can_merge(
     p1: tuple[Any, ...],
     p2: tuple[Any, ...],
     is_multivalue: list[bool],
+    condition_domains: list[list[Any]] | None = None,
 ) -> tuple[bool, tuple[Any, ...] | None]:
     """Return whether two patterns can be merged by the QM algorithm."""
     if len(p1) != len(p2):
@@ -34,15 +35,66 @@ def can_merge(
         if v1 != v2:
             diff_positions.append(i)
 
-    # Exactly one difference, located at a binary condition.
+    # Exactly one difference, located at a binary or multi-value condition.
     if len(diff_positions) == 1:
         pos = diff_positions[0]
         if not is_multivalue[pos]:
             merged = list(p1)
             merged[pos] = DONT_CARE
             return True, tuple(merged)
+        if condition_domains is not None:
+            merged_value = _merge_multivalue_position(
+                p1[pos],
+                p2[pos],
+                condition_domains[pos],
+            )
+            if merged_value is not None:
+                merged = list(p1)
+                merged[pos] = merged_value
+                return True, tuple(merged)
 
     return False, None
+
+
+def _merge_multivalue_position(
+    left: Any,
+    right: Any,
+    domain: list[Any],
+) -> Any | None:
+    """Merge one multi-value position without overgeneralizing the domain."""
+    if left == DONT_CARE or right == DONT_CARE:
+        return None
+
+    left_values = _pattern_value_set(left)
+    right_values = _pattern_value_set(right)
+    merged_values = left_values | right_values
+    if merged_values in (left_values, right_values):
+        return None
+
+    domain_values = frozenset(domain)
+    if not merged_values.issubset(domain_values):
+        return None
+    if merged_values == domain_values:
+        return DONT_CARE
+    return frozenset(_sort_values(merged_values))
+
+
+def _pattern_value_set(value: Any) -> frozenset[Any]:
+    if isinstance(value, frozenset):
+        return value
+    if isinstance(value, tuple):
+        return frozenset(value)
+    return frozenset([value])
+
+
+def _sort_values(values: frozenset[Any]) -> list[Any]:
+    def _sort_key(value: Any) -> tuple:
+        try:
+            return (0, float(value), "")
+        except (TypeError, ValueError):
+            return (1, 0.0, str(value))
+
+    return sorted(values, key=_sort_key)
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +114,7 @@ def quine_mccluskey(
 
     dont_care_set: frozenset[int] = frozenset(dont_care_indices or [])
     target_set: frozenset[int] = frozenset(minterms)
+    condition_domains = _domains_by_position(all_patterns)
 
     # Generate initial implicants.
     # Key: frozenset of covered minterm indices.
@@ -85,7 +138,12 @@ def quine_mccluskey(
                 cov1, pat1 = items[i]
                 cov2, pat2 = items[j]
 
-                ok, merged_pat = can_merge(pat1, pat2, is_multivalue)
+                ok, merged_pat = can_merge(
+                    pat1,
+                    pat2,
+                    is_multivalue,
+                    condition_domains=condition_domains,
+                )
                 if ok and merged_pat is not None:
                     new_cov = cov1 | cov2
                     # Replace an existing entry with the same coverage.
@@ -110,6 +168,18 @@ def quine_mccluskey(
         current = next_level
 
     return deduplicate_implicants(all_prime_candidates)
+
+
+def _domains_by_position(all_patterns: list[tuple[Any, ...]]) -> list[list[Any]]:
+    """Return concrete condition domains inferred from minterm patterns."""
+    if not all_patterns:
+        return []
+    n_positions = len(all_patterns[0])
+    domains: list[list[Any]] = []
+    for pos in range(n_positions):
+        values = frozenset(pattern[pos] for pattern in all_patterns)
+        domains.append(_sort_values(values))
+    return domains
 
 
 # ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@ PyQCA
 =====
 
 PyQCA is a Python-native toolkit for crisp-set, multi-value, fuzzy-set,
-mixed-type, threshold-sweep, and machine-learning-enhanced Qualitative
+generalized-set, threshold-sweep, and machine-learning-enhanced Qualitative
 Comparative Analysis.
 
 The library keeps the analytical pipeline inspectable: calibrated data, truth
@@ -38,7 +38,7 @@ Start here
    :caption: User guide
 
    user_guide/core_qca
-   user_guide/mixed_qca
+   user_guide/gsqca
    user_guide/calibration
    user_guide/minimization
    user_guide/sensitivity

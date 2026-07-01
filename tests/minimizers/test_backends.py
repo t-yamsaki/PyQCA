@@ -1,4 +1,4 @@
-"""Phase 12: README Roadmap v0.3 minimization backend acceptance tests."""
+"""Minimization backend acceptance tests."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import warnings
 import pandas as pd
 import pytest
 
-from qca import MixedQCA
+from qca import GSQCA
 from qca.minimizers import (
     Implicant,
     MinimizerBenchmarkResult,
@@ -45,8 +45,8 @@ def backend_df() -> pd.DataFrame:
 
 
 @pytest.fixture
-def backend_model(backend_df) -> MixedQCA:
-    return MixedQCA(
+def backend_model(backend_df) -> GSQCA:
+    return GSQCA(
         data=backend_df,
         case_id="case",
         outcome="Y",

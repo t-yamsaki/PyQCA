@@ -1,4 +1,4 @@
-"""Phase 19: mlQCA P3 combination search and Pareto tests."""
+"""mlQCA combination search and Pareto tests."""
 
 from __future__ import annotations
 

@@ -8,10 +8,11 @@
 [日本語 README](README.ja.md)
 
 It provides a unified framework for running **crisp-set QCA (csQCA)**,
-**multi-value QCA (mvQCA)**, **fuzzy-set QCA (fsQCA)**, mixed-type
-configurational analysis, and **machine-learning-enhanced QCA (mlQCA)** in
-Python. PyQCA also supports pluggable minimization backends, threshold and
-calibration sensitivity analysis, reporting, and reproducibility tools.
+**multi-value QCA (mvQCA)**, **fuzzy-set QCA (fsQCA)**,
+**generalized-set QCA (gsQCA)**, and **machine-learning-enhanced QCA
+(mlQCA)** in Python. PyQCA also supports pluggable minimization backends,
+threshold and calibration sensitivity analysis, reporting, and reproducibility
+tools.
 
 > Status: experimental / under active development
 
@@ -19,9 +20,9 @@ calibration sensitivity analysis, reporting, and reproducibility tools.
 
 ## Documentation
 
-The Sphinx documentation covers installation, core and mixed QCA, calibration,
-minimization, sensitivity analysis, reporting, mlQCA, and the generated API
-reference. It is configured for publication on Read the Docs.
+The Sphinx documentation covers installation, core QCA, generalized-set QCA,
+calibration, minimization, sensitivity analysis, reporting, mlQCA, and the
+generated API reference. It is configured for publication on Read the Docs.
 
 Build it locally with:
 
@@ -41,8 +42,8 @@ QCA is widely used in social science, management research, political science, ev
 
 PyQCA aims to provide a Python-native QCA foundation for researchers and practitioners who want to:
 
-* run csQCA, mvQCA, and fsQCA directly in Python;
-* analyze crisp, multi-valued, and fuzzy-set conditions in a unified interface;
+* run csQCA, mvQCA, fsQCA, and gsQCA directly in Python;
+* analyze crisp, multi-valued, and fuzzy-set conditions in a generalized-set interface;
 * switch between different minimization algorithms;
 * inspect consistency, coverage, truth tables, and solution formulas;
 * conduct threshold-sensitivity analysis systematically;
@@ -135,16 +136,20 @@ print(result.solutions)
 
 ---
 
-### 4. MixedQCA
+### 4. GSQCA
 
-`MixedQCA` is the high-level interface for datasets containing multiple condition types.
+`GSQCA` is the high-level interface for generalized-set QCA workflows
+containing crisp, multi-value, and fuzzy-set conditions.
 
-It allows crisp, multi-valued, and fuzzy-set conditions to be analyzed in one workflow.
+It treats csQCA, mvQCA, and fsQCA as special cases. Use `GSQCA` for workflows
+that combine condition kinds.
+The implemented semantics are documented by PyQCA and are not presented as a
+drop-in clone of any single external gsQCA package.
 
 ```python
-from qca import MixedQCA
+from qca import GSQCA
 
-model = MixedQCA(
+model = GSQCA(
     data=df,
     outcome="Y",
     conditions=["A", "B", "C", "D"],
@@ -174,13 +179,30 @@ schema = [
     {"name": "C", "type": "fuzzy", "domain": [0, 1], "calibrated": True},
 ]
 
-model = MixedQCA.from_schema(data=df, outcome="Y", schema=schema)
+model = GSQCA.from_schema(data=df, outcome="Y", schema=schema)
 
-print(model.workflow)          # mixed-crisp-fuzzy-multi
+print(model.workflow)          # GSQCA-crisp-fuzzy-multi
 print(model.condition_schema)  # normalized schema DataFrame
 ```
 
-The purpose of `MixedQCA` is to make mixed-type configurational analysis explicit, rather than forcing all variables into a single representation too early.
+For multivalent fuzzy set variables, declare value-specific calibrated
+membership columns:
+
+```python
+schema = [
+    {
+        "name": "sector",
+        "type": "multi-value",
+        "calibrated": True,
+        "value_columns": {
+            "public": "sector_public",
+            "private": "sector_private",
+        },
+    },
+]
+```
+
+Fitted results report `qca_type="GSQCA"`.
 
 ---
 
@@ -293,7 +315,7 @@ Available sweep modes:
 
 The optional `qca.mlqca` workflow connects predictive modeling to PyQCA's
 native QCA engines. It uses XGBoost to rank candidate conditions and extract
-split thresholds, then applies PyQCA calibration, csQCA or MixedQCA analysis,
+split thresholds, then applies PyQCA calibration, csQCA or gsQCA analysis,
 radical or theory-constrained model search, Pareto evaluation, and
 cross-validation or bootstrap stability analysis.
 
@@ -314,7 +336,7 @@ result = search_csqca_models(validated, predictor, config)
 
 XGBoost and scikit-learn are optional dependencies. See
 [Machine-Learning-Enhanced QCA Workflow](#machine-learning-enhanced-qca-workflow) for the
-complete workflow, mixed-type integration, stability analysis, and published
+complete workflow, gsQCA integration, stability analysis, and published
 example reproduction.
 
 ---
@@ -536,9 +558,9 @@ print(result.best_qca_result)
 `mode="conservative"` requires theory-driven constraints through required or
 excluded conditions, or explicit `conservative_models`.
 
-Mixed crisp, fuzzy, and multi-value workflows can be connected to `MixedQCA`
-with `fit_mixedqca_from_predictor()`. Fuzzy anchor proposals can be evaluated
-with `run_anchor_sensitivity()`.
+Generalized-set workflows combining crisp, fuzzy, and multi-value conditions
+can be connected to `GSQCA` with `fit_gsqca_from_predictor()`. Fuzzy anchor
+proposals can be evaluated with `run_anchor_sensitivity()`.
 
 ### Cross-Validation and Bootstrap Stability
 
@@ -626,7 +648,7 @@ qca
 │   ├── csqca.py
 │   ├── fsqca.py
 │   ├── mvqca.py
-│   └── mixed.py
+│   └── gsqca.py
 │
 ├── minimizers
 │   ├── __init__.py
@@ -650,7 +672,7 @@ qca
 │   ├── cutoffs.py
 │   ├── fuzzy.py
 │   ├── importance.py
-│   ├── mixed.py
+│   ├── gsqca.py
 │   ├── reporting.py
 │   ├── reproducibility.py
 │   ├── results.py
@@ -696,10 +718,11 @@ Current engine architecture:
 
 * `QCAEngineBase` holds the shared validation, truth-table, minimization, and
   result-building core.
-* `CSQCA`, `FSQCA`, and `MVQCA` are first-class engines in their own modules:
-  `qca.engines.csqca`, `qca.engines.fsqca`, and `qca.engines.mvqca`.
-* `MixedQCA` is a high-level facade over the same shared core for workflows
-  combining crisp, fuzzy, and multi-value conditions.
+* `CSQCA`, `FSQCA`, `MVQCA`, and `GSQCA` are first-class engines in their own
+  modules: `qca.engines.csqca`, `qca.engines.fsqca`, `qca.engines.mvqca`, and
+  `qca.engines.gsqca`.
+* `GSQCA` is the first-class generalized-set engine for workflows that combine
+  crisp, fuzzy, and multi-value condition kinds.
 * `qca.core` owns the shared condition schema, literal objects, and result
   dataclasses; engine classes are exposed only from `qca.engines` and the
   package-level API.
@@ -744,11 +767,11 @@ single selected solution.
 
 ---
 
-### 3. Mixed-type by design
+### 3. GSQCA by design
 
-Many real datasets contain a mixture of crisp, categorical, ordinal, and fuzzy-set variables.
+Many real datasets contain crisp, categorical, ordinal, and fuzzy-set variables.
 
-PyQCA treats this as a first-class use case through `MixedQCA`.
+PyQCA treats generalized-set QCA as a first-class use case through `GSQCA`.
 
 ---
 
@@ -814,7 +837,7 @@ pip install pyqca
 
 ```python
 import pandas as pd
-from qca import MixedQCA
+from qca import GSQCA
 
 df = pd.DataFrame(
     {
@@ -826,7 +849,7 @@ df = pd.DataFrame(
     }
 )
 
-model = MixedQCA(
+model = GSQCA(
     data=df,
     case_id="case",
     outcome="Y",
@@ -896,7 +919,7 @@ Its intended position is:
 | scpQCA-style algorithms | Set-covering-based alternative minimization                                                                                            |
 | ThS-QCA framework       | Threshold-sweep sensitivity analysis                                                                                                   |
 | R `mlQCA` package       | Published machine-learning-enhanced QCA protocol using predictive condition selection and calibration evidence                        |
-| PyQCA                   | Python-native QCA platform integrating core and mixed QCA, minimization, sensitivity analysis, and an independent `qca.mlqca` workflow |
+| PyQCA                   | Python-native QCA platform integrating core QCA and GSQCA, minimization, sensitivity analysis, and an independent `qca.mlqca` workflow |
 
 PyQCA aims to complement existing tools, not replace them. Its `qca.mlqca`
 package is methodologically informed by Huang's mlQCA work but independently
@@ -928,10 +951,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from qca import MixedQCA, ThresholdSweep
+from qca import GSQCA, ThresholdSweep
 
-# 1. Analyze calibrated mixed-type conditions.
-mixed_df = pd.DataFrame(
+# 1. Analyze calibrated generalized-set conditions.
+gsqca_df = pd.DataFrame(
     {
         "case": [f"c{i}" for i in range(1, 9)],
         "Strategy": ["focus", "focus", "broad", "broad"] * 2,
@@ -942,8 +965,8 @@ mixed_df = pd.DataFrame(
     }
 )
 
-model = MixedQCA(
-    data=mixed_df,
+model = GSQCA(
+    data=gsqca_df,
     case_id="case",
     outcome="HighPerformance",
     conditions=["Strategy", "Budget", "CreativeQuality", "MarketFit"],
@@ -1017,7 +1040,7 @@ Suggested citation:
 
 ```bibtex
 @software{pyqca,
-  title = {PyQCA: A Python-native toolkit for core, mixed, threshold-sweep, and machine-learning-enhanced QCA},
+  title = {PyQCA: A Python-native toolkit for core, generalized-set, threshold-sweep, and machine-learning-enhanced QCA},
   author = {Yamasaki, Taishi},
   year = {2026},
   url = {https://github.com/t-yamsaki/PyQCA}

@@ -279,7 +279,6 @@ class AnchorSensitivity:
         coverage_cutoff: float | None = None,
     ) -> AnchorSensitivityResult:
         """Run a full three-anchor grid analysis for one raw condition."""
-        del pri_cut
         self._validate_variable_names(condition)
         anchor_combos = _anchor_product(anchor_grid)
         calibrated_col = out_col or f"{condition}_fuzzy"
@@ -300,6 +299,7 @@ class AnchorSensitivity:
                 dir_exp=dir_exp,
                 incl_cut=incl_cut,
                 n_cut=n_cut,
+                pri_cut=pri_cut,
                 minimizer=minimizer,
                 outcome_threshold=outcome_threshold,
                 coverage_cutoff=coverage_cutoff,
@@ -332,6 +332,7 @@ class AnchorSensitivity:
                 "anchor_grid": {k: list(v) for k, v in anchor_grid.items()},
                 "incl.cut": incl_cut,
                 "n.cut": n_cut,
+                "pri.cut": pri_cut,
                 "include": include,
                 "dir.exp": dir_exp,
                 "minimizer": minimizer,
@@ -353,6 +354,7 @@ class AnchorSensitivity:
         dir_exp: Mapping[str, Any] | Sequence[Any] | Any | None,
         incl_cut: float,
         n_cut: int,
+        pri_cut: float,
         minimizer: str,
         outcome_threshold: float,
         coverage_cutoff: float | None,
@@ -381,6 +383,7 @@ class AnchorSensitivity:
                 minimizer=minimizer,
                 consistency_cutoff=incl_cut,
                 outcome_threshold=outcome_threshold,
+                pri_cut=pri_cut,
                 frequency_cutoff=n_cut,
                 coverage_cutoff=coverage_cutoff,
                 directional_expectations=directional_expectations,

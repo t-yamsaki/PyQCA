@@ -1,4 +1,4 @@
-"""Phase 14: README Roadmap v0.5 fsQCA anchor sensitivity tests."""
+"""fsQCA anchor sensitivity tests."""
 
 from __future__ import annotations
 
@@ -125,6 +125,41 @@ def test_v05_multi_anchor_grid_analysis(raw_anchor_df) -> None:
     assert len(result.summary_df) == 4
     assert result.summary_df["combo_id"].tolist() == [1, 2, 3, 4]
     assert {"full_out", "crossover", "full_in"}.issubset(result.summary_df)
+
+
+def test_anchor_sensitivity_passes_pri_cut_to_fit(raw_anchor_df, monkeypatch) -> None:
+    from qca.sweep import anchors as anchors_module
+
+    seen: list[float | None] = []
+    original_fit = anchors_module.FSQCA.fit
+
+    def spy_fit(self, *args, **kwargs):
+        seen.append(kwargs.get("pri_cut"))
+        return original_fit(self, *args, **kwargs)
+
+    monkeypatch.setattr(anchors_module.FSQCA, "fit", spy_fit)
+    sweep = AnchorSensitivity(
+        raw_anchor_df,
+        outcome="Y",
+        conditions=["Budget", "Capacity"],
+        case_id="case",
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sweep.grid(
+            "Budget",
+            {
+                "full_out": [1],
+                "crossover": [4],
+                "full_in": [8],
+            },
+            incl_cut=0.5,
+            outcome_threshold=0.5,
+            pri_cut=0.4,
+        )
+
+    assert seen == [0.4]
 
 
 def test_v05_threshold_sweep_fuzzy_anchor_adapter(raw_anchor_df) -> None:

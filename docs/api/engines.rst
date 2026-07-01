@@ -17,6 +17,6 @@ QCA engines
    :members:
    :show-inheritance:
 
-.. autoclass:: qca.MixedQCA
+.. autoclass:: qca.GSQCA
    :members:
    :show-inheritance:

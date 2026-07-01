@@ -44,7 +44,7 @@ fsQCA
 -----
 
 :class:`qca.FSQCA` accepts calibrated memberships in the closed interval
-``[0, 1]``. Crisp conditions can be mixed into an fsQCA model by declaring
+``[0, 1]``. Crisp conditions can be included in an fsQCA model by declaring
 their condition type.
 
 .. code-block:: python

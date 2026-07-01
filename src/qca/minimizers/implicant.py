@@ -41,7 +41,13 @@ class Implicant:
 
         for sv, ov in zip(self.pattern, other.pattern, strict=False):
             # A concrete value in self that differs from other is not subsumed.
-            if sv != DONT_CARE and sv != ov:
+            if sv == DONT_CARE:
+                continue
+            if _is_value_collection(sv):
+                if not _value_set(ov).issubset(_value_set(sv)):
+                    return False
+                continue
+            if sv != ov:
                 return False
 
         # Coverage must also be contained.
@@ -63,6 +69,10 @@ class Implicant:
         for name, val in zip(condition_names, self.pattern, strict=False):
             if val == DONT_CARE:
                 continue
+            if _is_value_collection(val):
+                values = _sorted_values(val)
+                parts.append(f"{name}={{{','.join(str(v) for v in values)}}}")
+                continue
             if isinstance(val, int):
                 parts.append(f"~{name}" if val == 0 else name)
             else:
@@ -78,6 +88,26 @@ class Implicant:
             f"complexity={self.complexity()}"
             f")"
         )
+
+
+def _is_value_collection(value: Any) -> bool:
+    return isinstance(value, (frozenset, tuple)) and not isinstance(value, str)
+
+
+def _value_set(value: Any) -> frozenset[Any]:
+    if _is_value_collection(value):
+        return frozenset(value)
+    return frozenset([value])
+
+
+def _sorted_values(values: Any) -> list[Any]:
+    def _sort_key(value: Any) -> tuple:
+        try:
+            return (0, float(value), "")
+        except (TypeError, ValueError):
+            return (1, 0.0, str(value))
+
+    return sorted(list(values), key=_sort_key)
 
 
 # ---------------------------------------------------------------------------

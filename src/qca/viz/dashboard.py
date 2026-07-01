@@ -88,7 +88,7 @@ def plot_dashboard(
     title: str | None = None,
     path: str | Path | None = None,
 ) -> Any:
-    """Create a compact dashboard figure for a MixedQCA model."""
+    """Create a compact dashboard figure for a GSQCA model."""
     plt = _require_matplotlib()
     if suf_results is None or nec_results is None:
         found_suf, found_nec = _search_results(model)

@@ -62,11 +62,11 @@ Search csQCA models
 Use ``required_conditions``, ``excluded_conditions``, or
 ``conservative_models`` for theory-constrained searches.
 
-Mixed and fuzzy workflows
+GSQCA and fuzzy workflows
 -------------------------
 
-Use :func:`qca.fit_mixedqca_from_predictor` to assign crisp, fuzzy, and
-multi-value calibration strategies before fitting :class:`qca.MixedQCA`.
+Use :func:`qca.fit_gsqca_from_predictor` to assign crisp, fuzzy, and
+multi-value calibration strategies before fitting :class:`qca.GSQCA`.
 Use :func:`qca.run_anchor_sensitivity` to evaluate proposed fuzzy anchors.
 
 Cross-validation and bootstrap

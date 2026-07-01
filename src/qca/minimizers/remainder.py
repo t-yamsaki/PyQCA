@@ -67,10 +67,14 @@ def classify_truth_table_rows(
     condition_names: list[str],
     is_multivalue_flags: list[bool],
     outcome_threshold: float,
-    consistency_threshold: float,
+    consistency_threshold: float | None,
+    pri_cut: float = 0.0,
     frequency_cutoff: int = 1,
 ) -> tuple[MintermList, MintermList, MintermList, MintermList]:
     """Classify truth-table rows as positive, negative, remainder, or contradiction."""
+    resolved_consistency_threshold = (
+        outcome_threshold if consistency_threshold is None else consistency_threshold
+    )
     observed_patterns: set[tuple[Any, ...]] = set()
     positive_set: set[int] = set()
     negative_set: set[int] = set()
@@ -103,9 +107,11 @@ def classify_truth_table_rows(
 
         observed_patterns.add(pat)
 
+        row_pri = getattr(row, "pri_consistency", None)
+        passes_pri = row_pri is None or row_pri >= pri_cut
         is_positive = (
-            row.outcome_mean >= outcome_threshold
-            and row.outcome_raw_consist >= consistency_threshold
+            row.outcome_raw_consist >= resolved_consistency_threshold
+            and passes_pri
         )
 
         # Detect indices that have already received the opposite classification.

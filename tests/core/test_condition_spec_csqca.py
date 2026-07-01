@@ -7,7 +7,7 @@ import pytest
 
 import qca
 from qca import ConditionSpec
-from qca.engines import CSQCA, MixedQCA, QCAEngineBase
+from qca.engines import CSQCA, GSQCA, QCAEngineBase
 from qca.results import QCAFitResult
 
 
@@ -22,7 +22,7 @@ def crisp_df() -> pd.DataFrame:
     )
 
 
-def mixed_df() -> pd.DataFrame:
+def gsqca_df() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "case": ["A", "B", "C", "D"],
@@ -52,12 +52,13 @@ def test_condition_spec_normalizes_aliases_and_metadata() -> None:
         "kind": "crisp",
         "domain": (0, 1),
         "calibrated": True,
+        "value_columns": {},
     }
 
 
-def test_mixedqca_exposes_condition_specs_for_pyqca_schema() -> None:
-    model = MixedQCA(
-        data=mixed_df(),
+def test_gsqca_exposes_condition_specs_for_pyqca_schema() -> None:
+    model = GSQCA(
+        data=gsqca_df(),
         case_id="case",
         outcome="outcome",
         conditions=["skill", "quality", "region"],
@@ -85,9 +86,9 @@ def test_mixedqca_exposes_condition_specs_for_pyqca_schema() -> None:
     assert model.multivalue_conditions == ["region"]
 
 
-def test_mixedqca_builds_condition_specs_for_legacy_schema() -> None:
-    model = MixedQCA(
-        data=mixed_df(),
+def test_gsqca_builds_condition_specs_for_legacy_schema() -> None:
+    model = GSQCA(
+        data=gsqca_df(),
         case_id="case",
         outcome="outcome",
         set_conditions=["skill", "quality"],
@@ -118,7 +119,7 @@ def test_csqca_maps_all_conditions_to_crisp() -> None:
     )
 
     assert isinstance(model, QCAEngineBase)
-    assert not isinstance(model, MixedQCA)
+    assert not isinstance(model, GSQCA)
     assert model.qca_type == "csQCA"
     assert model.set_conditions == ["skill", "resources"]
     assert model.multivalue_conditions == []

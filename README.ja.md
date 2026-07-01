@@ -16,7 +16,7 @@ csQCA、mvQCA、fsQCA、混合型QCAに加え、XGBoostによる条件選択と
 
 ## ドキュメント
 
-Sphinxドキュメントには、インストール、Core/Mixed QCA、calibration、
+Sphinxドキュメントには、インストール、Core/gsQCA、calibration、
 minimization、感度分析、レポート、mlQCA、API referenceを収録しています。
 Read the Docsで公開できる構成です。
 
@@ -35,7 +35,7 @@ Read the Docs projectを接続するまでは、ビルド後に
 ## 特徴
 
 * **Core QCA**: `CSQCA`, `MVQCA`, `FSQCA`
-* **MixedQCA**: crisp / multi-value / fuzzy 条件を統一スキーマで扱う高レベルインターフェース
+* **GSQCA**: crisp / multi-value / fuzzy 条件を統一スキーマで扱う高レベルインターフェース
 * **Minimization backends**: `standard`, `qmc`, `set_cover`, `greedy_set_cover`, `exact_set_cover`
 * **Calibration**: crisp calibration, piecewise fuzzy calibration, logistic fuzzy calibration
 * **ThresholdSweep**: ThSQCA に準拠した outcome / condition / grid / dual threshold sweep
@@ -145,14 +145,14 @@ model = FSQCA(
 result = model.fit(consistency_cutoff=0.8, coverage_cutoff=0.1)
 ```
 
-### MixedQCA
+### GSQCA
 
 ```python
 import pandas as pd
 
-from qca import MixedQCA
+from qca import GSQCA
 
-mixed_df = pd.DataFrame(
+gsqca_df = pd.DataFrame(
     {
         "case": [f"c{i}" for i in range(1, 9)],
         "policy": [1, 1, 1, 0, 1, 0, 0, 0],
@@ -162,8 +162,8 @@ mixed_df = pd.DataFrame(
     }
 )
 
-model = MixedQCA(
-    data=mixed_df,
+model = GSQCA(
+    data=gsqca_df,
     case_id="case",
     outcome="Y",
     conditions=["policy", "region", "capacity"],
@@ -177,6 +177,10 @@ model = MixedQCA(
 result = model.fit(minimizer="set_cover")
 ```
 
+`GSQCA` は PyQCA が文書化する操作的定義に基づく generalized-set
+workflow です。特定の外部 gsQCA パッケージの完全互換クローンとしては
+位置づけていません。
+
 統一スキーマからも作成できます:
 
 ```python
@@ -186,8 +190,8 @@ schema = [
     {"name": "capacity", "type": "fuzzy", "domain": [0, 1], "calibrated": True},
 ]
 
-model = MixedQCA.from_schema(
-    data=mixed_df,
+model = GSQCA.from_schema(
+    data=gsqca_df,
     outcome="Y",
     schema=schema,
     case_id="case",
@@ -438,7 +442,7 @@ print(result.best_qca_result)
 `conservative_models` による理論的制約が必要です。
 
 crisp、fuzzy、multi-valueを混在させる場合は
-`fit_mixedqca_from_predictor()` から `MixedQCA` に接続できます。
+`fit_gsqca_from_predictor()` から `GSQCA` に接続できます。
 fuzzy anchor候補は `run_anchor_sensitivity()` で感度分析できます。
 
 ### CV / bootstrap安定性
@@ -500,7 +504,7 @@ byte単位で同じtreeや順位を生成することを保証するものでは
 
 PyQCA は、`QCAEngineBase` を共通基底として、`CSQCA`, `MVQCA`, `FSQCA` を first-class engine として実装しています。
 
-`MixedQCA` は、それらと同じ共通コアを使う高レベル facade です。crisp / multi-value / fuzzy 条件を同じ分析ワークフローで扱うための入口として設計されています。
+`GSQCA` は、それらと同じ共通コアを使う高レベル facade です。crisp / multi-value / fuzzy 条件を同じ分析ワークフローで扱うための入口として設計されています。
 
 ```text
 qca
@@ -520,7 +524,7 @@ qca
 │   ├── csqca.py
 │   ├── fsqca.py
 │   ├── mvqca.py
-│   └── mixed.py
+│   └── gsqca.py
 ├── minimizers
 │   ├── algorithms.py / engine.py / implicant.py / remainder.py
 │   ├── backends.py / benchmark.py
@@ -529,7 +533,7 @@ qca
 ├── mlqca
 │   ├── backend.py / config.py / schema.py / validation.py
 │   ├── xgboost.py / importance.py / cutoffs.py
-│   ├── calibration.py / csqca.py / fuzzy.py / mixed.py
+│   ├── calibration.py / csqca.py / fuzzy.py / gsqca.py
 │   ├── search.py / stability.py / results.py
 │   └── reporting.py / reproducibility.py / viz.py
 ├── reporting
@@ -569,9 +573,9 @@ candidate model、Pareto frontier、CV/bootstrap安定性表を確認できま�
 QCAとmlQCAをblack boxとして扱わず、予測上の根拠、calibrationの選択、
 失敗したmodel評価、resamplingによる変動を追跡可能にします。
 
-### 3. Mixed-typeをfirst-classに扱う
+### 3. GSQCAをfirst-classに扱う
 
-crisp、multi-value、fuzzy条件の混在を例外扱いせず、`MixedQCA` の主要な
+crisp、multi-value、fuzzy条件の混在を例外扱いせず、`GSQCA` の主要な
 利用形態として扱います。
 
 ### 4. 最小化アルゴリズムを交換可能にする
@@ -603,7 +607,7 @@ QCAの方法論的仮定を置き換えるものではありません。
 | scpQCA系algorithm | set-coveringを利用する代替的な最小化 |
 | ThSQCA | threshold-sweepによる感度分析 |
 | R `mlQCA` package | predictive condition selectionとcalibration evidenceを用いる公開mlQCAプロトコル |
-| PyQCA | core/mixed QCA、最小化、感度分析、独立実装の`qca.mlqca`を統合するPython-native platform |
+| PyQCA | core QCA / GSQCA、最小化、感度分析、独立実装の`qca.mlqca`を統合するPython-native platform |
 
 PyQCAは既存ツールを置き換えるのではなく、相互検証可能なPython実装として
 補完することを目指します。`qca.mlqca` はHuangのmlQCA研究を方法論的に

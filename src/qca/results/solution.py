@@ -32,7 +32,7 @@ class QCAFitResult:
     selected_solution_type: str = "intermediate"
     outcome: str | None = None
     case_id: str | None = None
-    qca_type: str = "MixedQCA"
+    qca_type: str = "GSQCA"
 
     @property
     def truth_table(self) -> pd.DataFrame:
