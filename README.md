@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/t-yamsaki/PyQCA/actions/workflows/ci.yml/badge.svg)](https://github.com/t-yamsaki/PyQCA/actions/workflows/ci.yml)
 [![Docs build](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml/badge.svg)](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml)
+[![Documentation](https://readthedocs.org/projects/pyqca/badge/?version=latest)](https://pyqca.readthedocs.io/en/latest/)
 
 [日本語 README](README.ja.md)
 
@@ -22,7 +23,8 @@ tools.
 
 The Sphinx documentation covers installation, core QCA, generalized-set QCA,
 calibration, minimization, sensitivity analysis, reporting, mlQCA, and the
-generated API reference. It is configured for publication on Read the Docs.
+generated API reference. The hosted documentation is available at
+https://pyqca.readthedocs.io/en/latest/.
 
 Build it locally with:
 
@@ -31,8 +33,7 @@ python -m pip install -e ".[docs]"
 python -m sphinx -W --keep-going -b html docs docs/_build/html
 ```
 
-Until the Read the Docs project is connected, open
-`docs/_build/html/index.html` after a local build.
+For local previews, open `docs/_build/html/index.html` after a local build.
 
 ---
 

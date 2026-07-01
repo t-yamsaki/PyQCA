@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/t-yamsaki/PyQCA/actions/workflows/ci.yml/badge.svg)](https://github.com/t-yamsaki/PyQCA/actions/workflows/ci.yml)
 [![Docs build](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml/badge.svg)](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml)
+[![Documentation](https://readthedocs.org/projects/pyqca/badge/?version=latest)](https://pyqca.readthedocs.io/en/latest/)
 
 csQCA、mvQCA、fsQCA、混合型QCAに加え、XGBoostによる条件選択と
 閾値提案をPyQCAのQCA engineへ接続するmachine-learning-enhanced QCA

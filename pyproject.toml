@@ -36,6 +36,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/t-yamsaki/PyQCA"
+Documentation = "https://pyqca.readthedocs.io/en/latest/"
 Repository = "https://github.com/t-yamsaki/PyQCA"
 Issues = "https://github.com/t-yamsaki/PyQCA/issues"
 
