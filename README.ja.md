@@ -3,7 +3,7 @@
 **PyQCA** は、Python ネイティブな **Qualitative Comparative Analysis (QCA; 質的比較分析)** のための実験的ライブラリです。
 
 [![CI](https://github.com/t-yamsaki/PyQCA/actions/workflows/ci.yml/badge.svg)](https://github.com/t-yamsaki/PyQCA/actions/workflows/ci.yml)
-[![Documentation](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml/badge.svg)](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml)
+[![Docs build](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml/badge.svg)](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml)
 
 csQCA、mvQCA、fsQCA、混合型QCAに加え、XGBoostによる条件選択と
 閾値提案をPyQCAのQCA engineへ接続するmachine-learning-enhanced QCA
