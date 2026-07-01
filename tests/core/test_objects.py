@@ -1,4 +1,4 @@
-"""フェーズ2: core/literals.py / core/results.py の動作確認テスト"""
+"""Core literal and result object tests."""
 
 from __future__ import annotations
 
@@ -25,13 +25,12 @@ from qca.core.results import (
 )
 
 # ---------------------------------------------------------------------------
-# フィクスチャ
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture
 def simple_df() -> pd.DataFrame:
-    """基本的なテスト用 DataFrame。"""
+    """Regression coverage."""
     return pd.DataFrame(
         {
             "skill": [0.9, 0.8, 0.3, 0.2, 0.6],
@@ -44,7 +43,7 @@ def simple_df() -> pd.DataFrame:
 
 @pytest.fixture
 def crossover_df() -> pd.DataFrame:
-    """クロスオーバーポイントを含む DataFrame。"""
+    """Regression coverage."""
     return pd.DataFrame(
         {
             "skill": [0.5, 0.5, 0.3],
@@ -54,7 +53,6 @@ def crossover_df() -> pd.DataFrame:
 
 
 # ===========================================================================
-# SetLiteral のテスト
 # ===========================================================================
 
 
@@ -146,13 +144,12 @@ class TestSetLiteralUtility:
         assert not a.is_negation_of(b)
 
     def test_hashable(self):
-        """frozen dataclass はハッシュ可能であること。"""
+        """Regression coverage."""
         s = {SetLiteral("skill"), SetLiteral("skill", True), SetLiteral("skill")}
         assert len(s) == 2
 
 
 # ===========================================================================
-# MultiValueLiteral のテスト
 # ===========================================================================
 
 
@@ -229,7 +226,6 @@ class TestMultiValueLiteralUtility:
 
 
 # ===========================================================================
-# parse_literal / parse_conjunction のテスト
 # ===========================================================================
 
 
@@ -273,7 +269,7 @@ class TestParseLiteral:
             parse_literal("")
 
     def test_roundtrip_set_literal(self):
-        """ラベル → parse_literal のラウンドトリップ。"""
+        """Regression coverage."""
         for label in ["skill", "~skill"]:
             assert parse_literal(label).label() == label
 
@@ -301,7 +297,6 @@ class TestParseConjunction:
 
 
 # ===========================================================================
-# SufficiencyResult のテスト
 # ===========================================================================
 
 
@@ -375,7 +370,6 @@ class TestSufficiencyResult:
 
 
 # ===========================================================================
-# NecessityResult のテスト
 # ===========================================================================
 
 
@@ -443,7 +437,6 @@ class TestNecessityResult:
 
 
 # ===========================================================================
-# TruthTableRow のテスト
 # ===========================================================================
 
 
@@ -471,7 +464,7 @@ class TestTruthTableRow:
         )
 
     def test_protocol_compliance(self, positive_row):
-        """TruthTableRowProtocol を満たすこと。"""
+        """Regression coverage."""
         assert isinstance(positive_row, TruthTableRowProtocol)
 
     def test_is_positive(self, positive_row):
@@ -525,7 +518,6 @@ class TestTruthTableRow:
 
     def test_to_dict_flat(self, positive_row):
         d = positive_row.to_dict()
-        # config のキーがフラットに展開されること
         assert "skill" in d
         assert "resources" in d
         assert "region" in d
@@ -545,13 +537,13 @@ class TestTruthTableRow:
         assert "north" in s
 
     def test_str_include_checkmark(self, positive_row):
-        assert "✓" in str(positive_row)
+        assert "yes" in str(positive_row)
 
     def test_str_include_cross(self, negative_row):
-        assert "✗" in str(negative_row)
+        assert "no" in str(negative_row)
 
     def test_many_cases_preview(self):
-        """6件以上のケースは省略されること。"""
+        """Regression coverage."""
         row = TruthTableRow(
             config={},
             n_cases=6,
@@ -564,7 +556,6 @@ class TestTruthTableRow:
 
 
 # ===========================================================================
-# 変換ユーティリティのテスト
 # ===========================================================================
 
 

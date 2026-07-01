@@ -44,8 +44,8 @@ It can also export Markdown, LaTeX tables, and formula text.
 Next steps
 ----------
 
-* Use :doc:`../user_guide/mixed_qca` for crisp, fuzzy, and multi-value
-  conditions in one model.
+* Use :doc:`../user_guide/gsqca` for generalized-set QCA with crisp,
+  fuzzy, and multi-value conditions in one model.
 * Use :doc:`../user_guide/calibration` when raw variables need set-membership
   calibration.
 * Use :doc:`../user_guide/sensitivity` to assess threshold or anchor choices.

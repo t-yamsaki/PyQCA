@@ -41,9 +41,9 @@ Calibration and engine adapters
 
 .. autofunction:: qca.fit_fsqca_from_predictor
 
-.. autofunction:: qca.calibrate_mixed_conditions
+.. autofunction:: qca.calibrate_gsqca_conditions
 
-.. autofunction:: qca.fit_mixedqca_from_predictor
+.. autofunction:: qca.fit_gsqca_from_predictor
 
 Search and stability
 --------------------

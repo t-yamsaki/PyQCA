@@ -1,4 +1,4 @@
-"""Mixed-type calibration and MixedQCA connection for mlQCA."""
+"""GSQCA calibration and engine connection for mlQCA."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any, Literal
 import pandas as pd
 
 from qca.core.conditions import ConditionSpec
-from qca.engines import MixedQCA
+from qca.engines import GSQCA
 from qca.mlqca.backend import PredictorFitResult
 from qca.mlqca.calibration import (
     calibrate_crisp_conditions,
@@ -22,12 +22,12 @@ from qca.mlqca.fuzzy import (
 from qca.mlqca.validation import ValidatedMLQCAInput
 from qca.results import QCAFitResult
 
-MixedConditionKind = Literal["crisp", "fuzzy", "multi"]
+GSQCAConditionKind = Literal["crisp", "fuzzy", "multi"]
 
 
 @dataclass(frozen=True)
-class MixedCalibrationSet:
-    """Calibrated data and schema for a mixed-type mlQCA workflow."""
+class GSQCACalibrationSet:
+    """Calibrated data and schema for a gsQCA mlQCA workflow."""
 
     data: pd.DataFrame
     outcome: str
@@ -56,19 +56,17 @@ class MixedCalibrationSet:
 
     @property
     def workflow(self) -> str:
-        kinds = {
-            spec.kind for spec in self.condition_specs
-        }
+        kinds = {spec.kind for spec in self.condition_specs}
         ordered = [kind for kind in ("crisp", "fuzzy", "multi") if kind in kinds]
-        return f"mixed-{'-'.join(ordered)}"
+        return f"GSQCA-{'-'.join(ordered)}"
 
 
 @dataclass(frozen=True)
-class MLQCAMixedResult:
-    """Result of fitting MixedQCA to mlQCA-calibrated conditions."""
+class MLQCAGSQCAResult:
+    """Result of fitting GSQCA to mlQCA-calibrated conditions."""
 
-    calibration: MixedCalibrationSet
-    engine: MixedQCA
+    calibration: GSQCACalibrationSet
+    engine: GSQCA
     fit_result: QCAFitResult
 
     @property
@@ -80,7 +78,7 @@ class MLQCAMixedResult:
         return self.fit_result.coverage
 
 
-def calibrate_mixed_conditions(
+def calibrate_gsqca_conditions(
     validated: ValidatedMLQCAInput,
     predictor: PredictorFitResult,
     condition_kinds: Mapping[str, str],
@@ -89,16 +87,16 @@ def calibrate_mixed_conditions(
     threshold_overrides: Mapping[str, float] | None = None,
     anchor_overrides: Mapping[str, Sequence[float]] | None = None,
     direction_overrides: Mapping[str, str] | None = None,
-) -> MixedCalibrationSet:
+) -> GSQCACalibrationSet:
     """Calibrate crisp/fuzzy conditions and pass multi-value conditions through."""
     selected = (
         validated.candidates
         if conditions is None
         else tuple(str(value).strip() for value in conditions)
     )
-    _validate_mixed_kinds(validated, selected, condition_kinds)
+    _validate_gsqca_kinds(validated, selected, condition_kinds)
     normalized = {
-        feature: _normalize_mixed_kind(condition_kinds[feature])
+        feature: _normalize_gsqca_kind(condition_kinds[feature])
         for feature in selected
     }
     crisp = tuple(feature for feature in selected if normalized[feature] == "crisp")
@@ -172,7 +170,7 @@ def calibrate_mixed_conditions(
             )
         )
 
-    return MixedCalibrationSet(
+    return GSQCACalibrationSet(
         data=work,
         outcome=validated.outcome,
         condition_specs=tuple(specs_by_source[source] for source in selected),
@@ -182,13 +180,13 @@ def calibrate_mixed_conditions(
     )
 
 
-def fit_mixedqca_from_calibration(
-    calibration: MixedCalibrationSet,
+def fit_gsqca_from_calibration(
+    calibration: GSQCACalibrationSet,
     **fit_kwargs: Any,
-) -> MLQCAMixedResult:
-    """Build and fit MixedQCA from mixed mlQCA calibration output."""
-    if not isinstance(calibration, MixedCalibrationSet):
-        raise TypeError("calibration must be a MixedCalibrationSet.")
+) -> MLQCAGSQCAResult:
+    """Build and fit GSQCA from mlQCA calibration output."""
+    if not isinstance(calibration, GSQCACalibrationSet):
+        raise TypeError("calibration must be a GSQCACalibrationSet.")
     required = [*calibration.conditions, calibration.outcome]
     missing = [
         column
@@ -197,23 +195,23 @@ def fit_mixedqca_from_calibration(
     ]
     if missing:
         raise ValueError(
-            "MixedQCA cannot fit calibrated data containing missing values: "
+            "GSQCA cannot fit calibrated data containing missing values: "
             f"{missing}"
         )
-    engine = MixedQCA.from_condition_specs(
+    engine = GSQCA.from_condition_specs(
         calibration.data,
         outcome=calibration.outcome,
         condition_specs=calibration.condition_specs,
         case_id=calibration.case_id,
     )
-    return MLQCAMixedResult(
+    return MLQCAGSQCAResult(
         calibration=calibration,
         engine=engine,
         fit_result=engine.fit(**fit_kwargs),
     )
 
 
-def fit_mixedqca_from_predictor(
+def fit_gsqca_from_predictor(
     validated: ValidatedMLQCAInput,
     predictor: PredictorFitResult,
     condition_kinds: Mapping[str, str],
@@ -223,9 +221,9 @@ def fit_mixedqca_from_predictor(
     anchor_overrides: Mapping[str, Sequence[float]] | None = None,
     direction_overrides: Mapping[str, str] | None = None,
     **fit_kwargs: Any,
-) -> MLQCAMixedResult:
-    """Calibrate a mixed schema and fit MixedQCA."""
-    calibration = calibrate_mixed_conditions(
+) -> MLQCAGSQCAResult:
+    """Calibrate a gsQCA schema and fit GSQCA."""
+    calibration = calibrate_gsqca_conditions(
         validated,
         predictor,
         condition_kinds,
@@ -234,10 +232,10 @@ def fit_mixedqca_from_predictor(
         anchor_overrides=anchor_overrides,
         direction_overrides=direction_overrides,
     )
-    return fit_mixedqca_from_calibration(calibration, **fit_kwargs)
+    return fit_gsqca_from_calibration(calibration, **fit_kwargs)
 
 
-def _validate_mixed_kinds(
+def _validate_gsqca_kinds(
     validated: ValidatedMLQCAInput,
     selected: Sequence[str],
     condition_kinds: Mapping[str, str],
@@ -256,10 +254,10 @@ def _validate_mixed_kinds(
     if extra:
         raise ValueError(f"condition_kinds contains unselected conditions: {extra}")
     for feature in selected:
-        _normalize_mixed_kind(condition_kinds[feature])
+        _normalize_gsqca_kind(condition_kinds[feature])
 
 
-def _normalize_mixed_kind(value: str) -> MixedConditionKind:
+def _normalize_gsqca_kind(value: str) -> GSQCAConditionKind:
     normalized = str(value).strip().lower().replace("_", "-")
     aliases = {
         "crisp": "crisp",
@@ -273,7 +271,7 @@ def _normalize_mixed_kind(value: str) -> MixedConditionKind:
     kind = aliases.get(normalized)
     if kind is None:
         raise ValueError(
-            f"Unknown mixed condition kind {value!r}. "
+            f"Unknown gsQCA condition kind {value!r}. "
             "Available kinds: crisp, fuzzy, multi."
         )
     return kind  # type: ignore[return-value]
@@ -303,10 +301,10 @@ def _tag_proposals(proposals: pd.DataFrame, kind: str) -> pd.DataFrame:
 
 
 __all__ = [
-    "MLQCAMixedResult",
-    "MixedCalibrationSet",
-    "MixedConditionKind",
-    "calibrate_mixed_conditions",
-    "fit_mixedqca_from_calibration",
-    "fit_mixedqca_from_predictor",
+    "MLQCAGSQCAResult",
+    "GSQCACalibrationSet",
+    "GSQCAConditionKind",
+    "calibrate_gsqca_conditions",
+    "fit_gsqca_from_calibration",
+    "fit_gsqca_from_predictor",
 ]

@@ -1,4 +1,4 @@
-"""Phase 5: generic calibration package tests."""
+"""Generic calibration package tests."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import pytest
 
 import qca.calibration as calibration
 from qca import (
-    MixedQCA,
+    GSQCA,
     calibrate_crisp as top_level_calibrate_crisp,
     calibrate_logistic as top_level_calibrate_logistic,
     calibrate_piecewise as top_level_calibrate_piecewise,
@@ -295,7 +295,7 @@ class TestCalibrationToQCAPipeline:
     def test_crisp_output_valid_for_qca(self, small_df):
         result = calibrate_crisp(small_df, "value", threshold=5.5)
         df = result.df.copy()
-        model = MixedQCA(
+        model = GSQCA(
             data=df,
             case_id="case",
             conditions=["value_crisp"],
@@ -308,7 +308,7 @@ class TestCalibrationToQCAPipeline:
     def test_piecewise_output_valid_for_qca(self, small_df):
         result = calibrate_piecewise(small_df, "value", min_nonnull=2)
         df = result.df.copy()
-        model = MixedQCA(
+        model = GSQCA(
             data=df,
             case_id="case",
             conditions=["value_fuzzy"],
@@ -320,7 +320,7 @@ class TestCalibrationToQCAPipeline:
     def test_logistic_output_valid_for_qca(self, small_df):
         result = calibrate_logistic(small_df, "value", min_nonnull=2)
         df = result.df.copy()
-        model = MixedQCA(
+        model = GSQCA(
             data=df,
             case_id="case",
             conditions=["value_fuzzy"],

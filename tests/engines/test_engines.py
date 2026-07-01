@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 import qca
-from qca.engines import FSQCA, MVQCA, MixedQCA, QCAEngineBase
+from qca.engines import FSQCA, GSQCA, MVQCA, QCAEngineBase
 from qca.results import QCAFitResult
 
 
@@ -44,7 +44,7 @@ def test_fsqca_maps_conditions_to_set_conditions() -> None:
     )
 
     assert isinstance(model, QCAEngineBase)
-    assert not isinstance(model, MixedQCA)
+    assert not isinstance(model, GSQCA)
     assert model.qca_type == "fsQCA"
     assert model.set_conditions == ["skill", "resources"]
     assert model.multivalue_conditions == []
@@ -112,7 +112,7 @@ def test_mvqca_maps_conditions_to_multivalue_conditions() -> None:
     )
 
     assert isinstance(model, QCAEngineBase)
-    assert not isinstance(model, MixedQCA)
+    assert not isinstance(model, GSQCA)
     assert model.qca_type == "mvQCA"
     assert model.set_conditions == []
     assert model.multivalue_conditions == ["sector", "region"]

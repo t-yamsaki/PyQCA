@@ -106,6 +106,9 @@ class MultiValueLiteral:
 
     def label(self) -> str:
         """Return a human-readable label."""
+        if _is_value_collection(self.value):
+            values = _sorted_values(self.value)
+            return f"{self.name}={{{','.join(str(v) for v in values)}}}"
         return f"{self.name}={self.value}"
 
     def __repr__(self) -> str:
@@ -117,13 +120,32 @@ class MultiValueLiteral:
 
     def membership(self, df: pd.DataFrame) -> pd.Series:
         """Return membership scores for this literal."""
+        values = _value_set(self.value)
+        fuzzy_membership = _multivalue_membership_from_columns(df, self.name, values)
+        if fuzzy_membership is not None:
+            return fuzzy_membership
+
         if self.name not in df.columns:
             raise KeyError(
                 f"MultiValueLiteral '{self.name}' is not present in the DataFrame. "
+                "No value-specific membership columns were found. "
                 f"Available columns: {list(df.columns)}"
             )
 
         col = df[self.name]
+
+        if _is_value_collection(self.value):
+            missing_values = values - frozenset(col.dropna().unique().tolist())
+            if missing_values:
+                warnings.warn(
+                    f"Values {sorted(missing_values, key=str)!r} for "
+                    f"MultiValueLiteral '{self.label()}' are not present in "
+                    "the DataFrame. Available values: "
+                    f"{sorted(col.dropna().unique().tolist(), key=str)}",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            return col.isin(values).astype(float)
 
         # Check that the category value is present.
         if self.value not in col.values:
@@ -147,7 +169,9 @@ class MultiValueLiteral:
         """Conflicts with."""
         if not isinstance(other, MultiValueLiteral):
             return False
-        return self.name == other.name and self.value != other.value
+        if self.name != other.name:
+            return False
+        return _value_set(self.value).isdisjoint(_value_set(other.value))
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +200,11 @@ def parse_literal(text: str) -> SetLiteral | MultiValueLiteral:
 def _parse_value(val_str: str) -> Any:
     """Parse a string token into a Python value."""
     val_str = val_str.strip()
+    if val_str.startswith("{") and val_str.endswith("}"):
+        inner = val_str[1:-1].strip()
+        if not inner:
+            raise ValueError("Multi-value set literal cannot be empty.")
+        return frozenset(_parse_value(part) for part in inner.split(","))
     try:
         return int(val_str)
     except ValueError:
@@ -185,6 +214,97 @@ def _parse_value(val_str: str) -> Any:
     except ValueError:
         pass
     return val_str
+
+
+def _multivalue_membership_from_columns(
+    df: pd.DataFrame,
+    name: str,
+    values: frozenset[Any],
+) -> pd.Series | None:
+    available = {
+        value: _find_multivalue_membership_column(df, name, value) for value in values
+    }
+    present = {value: column for value, column in available.items() if column}
+    if not present:
+        return None
+
+    missing = [value for value, column in available.items() if column is None]
+    if missing:
+        raise KeyError(
+            f"Missing value-specific membership columns for MultiValueLiteral "
+            f"'{name}' values {sorted(missing, key=str)!r}. Available columns: "
+            f"{list(df.columns)}"
+        )
+
+    memberships = [
+        _coerce_membership_column(df[column], f"{name}={value}")
+        for value, column in present.items()
+    ]
+    if len(memberships) == 1:
+        return memberships[0]
+    return pd.concat(memberships, axis=1).max(axis=1)
+
+
+def _find_multivalue_membership_column(
+    df: pd.DataFrame,
+    name: str,
+    value: Any,
+) -> str | None:
+    for candidate in _multivalue_membership_column_candidates(name, value):
+        if candidate in df.columns:
+            return candidate
+    return None
+
+
+def _multivalue_membership_column_candidates(name: str, value: Any) -> list[str]:
+    tokens = _value_tokens(value)
+    candidates: list[str] = []
+    for token in tokens:
+        candidates.extend(
+            [
+                f"{name}={token}",
+                f"{name}[{token}]",
+                f"{name}__{token}",
+            ]
+        )
+    return list(dict.fromkeys(candidates))
+
+
+def _coerce_membership_column(series: pd.Series, label: str) -> pd.Series:
+    values = pd.to_numeric(series, errors="raise").astype(float)
+    if not ((values >= NO_MEMBERSHIP).all() and (values <= FULL_MEMBERSHIP).all()):
+        raise ValueError(
+            f"MultiValueLiteral '{label}' values must be within [0, 1]. "
+            f"Observed range: [{values.min():.4f}, {values.max():.4f}]"
+        )
+    return values
+
+
+def _is_value_collection(value: Any) -> bool:
+    return isinstance(value, (frozenset, tuple)) and not isinstance(value, str)
+
+
+def _value_set(value: Any) -> frozenset[Any]:
+    if _is_value_collection(value):
+        return frozenset(value)
+    return frozenset([value])
+
+
+def _sorted_values(values: Any) -> list[Any]:
+    def _sort_key(value: Any) -> tuple:
+        try:
+            return (0, float(value), "")
+        except (TypeError, ValueError):
+            return (1, 0.0, str(value))
+
+    return sorted(list(values), key=_sort_key)
+
+
+def _value_tokens(value: Any) -> list[str]:
+    tokens = [str(value)]
+    if isinstance(value, float) and value.is_integer():
+        tokens.append(str(int(value)))
+    return list(dict.fromkeys(tokens))
 
 
 def parse_conjunction(text: str) -> list[SetLiteral | MultiValueLiteral]:

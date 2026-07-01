@@ -1,4 +1,4 @@
-"""Phase 18: mlQCA P2 crisp calibration and csQCA tests."""
+"""mlQCA crisp calibration and csQCA tests."""
 
 from __future__ import annotations
 

@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from qca.core.conditions import ConditionSpec
-from qca.engines import MixedQCA, QCAEngineBase
+from qca.engines import GSQCA, QCAEngineBase
 from qca.results import QCAFitResult
 
 OUTCOME_COLUMN = "__tsqca_Y__"
@@ -682,7 +682,6 @@ class ThresholdSweep:
         coverage_cutoff: float | None,
         pre_calibrated: Sequence[str] | None,
     ) -> dict[str, Any]:
-        del pri_cut
         outcome_clean, negate_outcome = self._outcome_parts()
         try:
             data_bin, specs = prepare_threshold_data(
@@ -695,7 +694,7 @@ class ThresholdSweep:
                 pre_calibrated=pre_calibrated,
                 negate_outcome=negate_outcome,
             )
-            model = MixedQCA(
+            model = GSQCA(
                 data=data_bin,
                 case_id=self.case_id if self.case_id in data_bin.columns else None,
                 outcome=OUTCOME_COLUMN,
@@ -706,6 +705,7 @@ class ThresholdSweep:
                 minimizer=minimizer,
                 consistency_cutoff=incl_cut,
                 outcome_threshold=incl_cut,
+                pri_cut=pri_cut,
                 frequency_cutoff=n_cut,
                 coverage_cutoff=coverage_cutoff,
                 directional_expectations=directional_expectations,

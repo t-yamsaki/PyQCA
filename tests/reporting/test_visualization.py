@@ -1,4 +1,4 @@
-"""Phase 6: reporting and optional visualization tests."""
+"""Reporting and optional visualization tests."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from qca import MixedQCA, generate_report
+from qca import GSQCA, generate_report
 from qca.core.literals import SetLiteral
 from qca.reporting import (
     consistency_label,
@@ -45,8 +45,8 @@ def base_df() -> pd.DataFrame:
 
 
 @pytest.fixture
-def model(base_df) -> MixedQCA:
-    return MixedQCA(
+def model(base_df) -> GSQCA:
+    return GSQCA(
         data=base_df,
         case_id="case",
         conditions=["skill", "resources", "region"],
@@ -77,7 +77,7 @@ def necessity_results(model) -> pd.DataFrame:
 class TestReportFormatters:
     def test_display_width_counts_wide_chars(self):
         assert display_width("QCA") == 3
-        assert display_width("分析") == 4
+        assert display_width("ＡＢ") == 4
 
     def test_truncate_display(self):
         assert truncate_display("abcdef", 4) == "a..."

@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from qca._constants import (
+    CROSSOVER_EPSILON,
     DONT_CARE,
     MEMBERSHIP_THRESHOLD,
     ZERO_EPSILON,
@@ -48,6 +49,7 @@ class QCAEngineBase:
     """Shared computational base for QCA engines."""
 
     _AUTO_CASE_ID_BASE = "__qca_case_id__"
+    _DEFAULT_TRUTH_TABLE_INCLUSION_CUTOFF = 0.75
 
     def __init__(
         self,
@@ -80,6 +82,7 @@ class QCAEngineBase:
         if outcome is None:
             raise ValueError("outcome is required.")
         self.outcome = outcome
+        self._materialize_multivalue_membership_columns()
         self._validate()
 
     def _resolve_case_id(self, case_id: str | None) -> tuple[str, bool]:
@@ -279,6 +282,7 @@ class QCAEngineBase:
             "role",
             "domain",
             "calibrated",
+            "value_columns",
             "is_set",
             "is_multi",
         ]
@@ -288,12 +292,13 @@ class QCAEngineBase:
             if domain is None:
                 if spec.is_set:
                     domain = (0.0, 1.0)
-                elif spec.name in self.data.columns:
-                    domain = tuple(self._sorted_unique(self.data[spec.name]))
+                elif spec.is_multi:
+                    inferred_domain = self._multivalue_domain(spec.name)
+                    domain = tuple(inferred_domain) if inferred_domain else None
 
             calibrated = spec.calibrated
             if calibrated is None:
-                calibrated = spec.is_set
+                calibrated = spec.is_set or bool(spec.value_columns)
 
             rows.append(
                 {
@@ -302,6 +307,7 @@ class QCAEngineBase:
                     "role": "set" if spec.is_set else "multi",
                     "domain": domain,
                     "calibrated": calibrated,
+                    "value_columns": dict(spec.value_columns or {}),
                     "is_set": spec.is_set,
                     "is_multi": spec.is_multi,
                 }
@@ -331,11 +337,12 @@ class QCAEngineBase:
 
     def fit(
         self,
-        consistency_cutoff: float = 0.75,
+        consistency_cutoff: float | None = None,
         coverage_cutoff: float | None = None,
         minimizer: str = "standard",
-        outcome_threshold: float = 0.75,
+        outcome_threshold: float | None = None,
         consistency_threshold: float | None = None,
+        pri_cut: float = 0.0,
         frequency_cutoff: int = 1,
         directional_expectations: dict[str, Any] | None = None,
         include_remainders_in_parsimonious: bool = True,
@@ -350,31 +357,39 @@ class QCAEngineBase:
         """
         backend = self._normalize_minimizer_backend(minimizer)
         self._validate_optional_cutoff("coverage_cutoff", coverage_cutoff)
-
-        resolved_consistency_threshold = (
-            consistency_threshold
-            if consistency_threshold is not None
-            else consistency_cutoff
+        self._validate_optional_cutoff("pri_cut", pri_cut)
+        resolved_consistency_threshold = self._resolve_truth_table_inclusion_cutoff(
+            consistency_cutoff=consistency_cutoff,
+            outcome_threshold=outcome_threshold,
+            consistency_threshold=consistency_threshold,
         )
 
         from qca.minimizers.engine import minimize_truth_table
 
         minimization = minimize_truth_table(
             self,
-            outcome_threshold=outcome_threshold,
+            outcome_threshold=resolved_consistency_threshold,
             consistency_threshold=resolved_consistency_threshold,
+            pri_cut=pri_cut,
             frequency_cutoff=frequency_cutoff,
             directional_expectations=directional_expectations,
             include_remainders_in_parsimonious=include_remainders_in_parsimonious,
             backend=backend,
         )
-        truth_table_rows = self.build_truth_table(outcome_threshold=outcome_threshold)
+        truth_table_rows = self.build_truth_table(
+            outcome_threshold=resolved_consistency_threshold,
+            pri_cut=pri_cut,
+        )
         settings = {
             "minimizer": backend,
             "workflow": getattr(self, "workflow", getattr(self, "qca_type", None)),
-            "outcome_threshold": outcome_threshold,
-            "consistency_cutoff": consistency_cutoff,
+            "outcome_threshold": resolved_consistency_threshold,
+            "truth_table_inclusion_cutoff": resolved_consistency_threshold,
+            "consistency_cutoff": resolved_consistency_threshold,
             "consistency_threshold": resolved_consistency_threshold,
+            "requested_outcome_threshold": outcome_threshold,
+            "requested_consistency_cutoff": consistency_cutoff,
+            "pri_cut": pri_cut,
             "frequency_cutoff": frequency_cutoff,
             "coverage_cutoff": coverage_cutoff,
             "directional_expectations": directional_expectations,
@@ -403,6 +418,29 @@ class QCAEngineBase:
             return
         if not 0.0 <= float(value) <= 1.0:
             raise ValueError(f"{name} must be in [0, 1]. Got {value}.")
+
+    def _resolve_truth_table_inclusion_cutoff(
+        self,
+        *,
+        consistency_cutoff: float | None,
+        outcome_threshold: float | None,
+        consistency_threshold: float | None,
+    ) -> float:
+        """Resolve the row-inclusion cutoff used for truth-table minimization."""
+        for name, value in (
+            ("consistency_cutoff", consistency_cutoff),
+            ("outcome_threshold", outcome_threshold),
+            ("consistency_threshold", consistency_threshold),
+        ):
+            self._validate_optional_cutoff(name, value)
+
+        if consistency_threshold is not None:
+            return float(consistency_threshold)
+        if consistency_cutoff is not None:
+            return float(consistency_cutoff)
+        if outcome_threshold is not None:
+            return float(outcome_threshold)
+        return self._DEFAULT_TRUTH_TABLE_INCLUSION_CUTOFF
 
     def _build_fit_result(
         self,
@@ -572,18 +610,26 @@ class QCAEngineBase:
         """Validate model data and schema consistency."""
         self._check_required_columns()
         self._coerce_set_conditions()
+        self._coerce_multivalue_membership_columns()
         self._coerce_outcome()
         self._check_duplicate_case_ids()
         self._check_condition_overlap()
+        self._check_multivalue_missing_values()
+        self._validate_declared_multivalue_domains()
 
     def _check_required_columns(self) -> None:
         required = [
             self.case_id,
             *self.set_conditions,
-            *self.multivalue_conditions,
             self.outcome,
         ]
         missing = [c for c in required if c not in self.data.columns]
+        for condition in self.multivalue_conditions:
+            if condition in self.data.columns:
+                continue
+            if self._has_complete_multivalue_membership_columns(condition):
+                continue
+            missing.append(condition)
         if missing:
             raise ValueError(
                 f"Required columns are missing from the DataFrame: {missing}\n"
@@ -605,8 +651,70 @@ class QCAEngineBase:
                     f"set_condition '{c}' must be within [0, 1]. "
                     f"Observed range: [{vals.min():.4f}, {vals.max():.4f}]"
                 )
+            if self.condition_types.get(c) == "crisp":
+                observed = vals.dropna()
+                if not observed.isin([0.0, 1.0]).all():
+                    raise ValueError(
+                        f"crisp condition '{c}' must contain only binary "
+                        "0/1 values. CSQCA requires crisp/binary values."
+                    )
             # Store the converted float values back in the data.
             self.data[c] = vals
+
+    def _materialize_multivalue_membership_columns(self) -> None:
+        """Copy declared gsQCA value-membership columns to canonical names."""
+        for spec in self.condition_specs:
+            if not spec.is_multi or not spec.value_columns:
+                continue
+            for value, source_column in spec.value_columns.items():
+                if source_column not in self.data.columns:
+                    raise ValueError(
+                        f"value_columns for multi-value condition '{spec.name}' "
+                        f"maps value {value!r} to missing column "
+                        f"{source_column!r}."
+                    )
+                target_column = self._multivalue_membership_column_name(
+                    spec.name, value
+                )
+                self.data[target_column] = self._coerce_membership_series(
+                    self.data[source_column],
+                    f"{spec.name}={value}",
+                )
+
+    def _coerce_multivalue_membership_columns(self) -> None:
+        """Validate calibrated multivalent fuzzy membership columns."""
+        for condition in self.multivalue_conditions:
+            for value, column in self._multivalue_membership_column_map(
+                condition
+            ).items():
+                self.data[column] = self._coerce_membership_series(
+                    self.data[column],
+                    f"{condition}={value}",
+                )
+
+    @staticmethod
+    def _coerce_membership_series(series: pd.Series, label: str) -> pd.Series:
+        try:
+            values = pd.to_numeric(series, errors="raise").astype(float)
+        except (ValueError, TypeError) as e:
+            raise TypeError(
+                f"membership column '{label}' cannot be converted to numeric "
+                f"values: {e}"
+            ) from e
+
+        if values.isna().any():
+            raise ValueError(
+                f"membership column '{label}' contains missing values. "
+                "Missing memberships cannot be used to construct QCA truth "
+                "tables."
+            )
+
+        if not ((values >= 0.0).all() and (values <= 1.0).all()):
+            raise ValueError(
+                f"membership column '{label}' must be within [0, 1]. "
+                f"Observed range: [{values.min():.4f}, {values.max():.4f}]"
+            )
+        return values
 
     def _coerce_outcome(self) -> None:
         """Coerce outcome."""
@@ -641,6 +749,119 @@ class QCAEngineBase:
                 f"{sorted(overlap)}"
             )
 
+    def _check_multivalue_missing_values(self) -> None:
+        """Reject missing categorical values before logical minimization."""
+        for condition in self.multivalue_conditions:
+            if condition not in self.data.columns:
+                continue
+            missing_mask = self.data[condition].isna()
+            if not missing_mask.any():
+                continue
+            case_ids = (
+                self.data.loc[missing_mask, self.case_id].astype(str).head(5).tolist()
+            )
+            suffix = "" if missing_mask.sum() <= 5 else " ..."
+            raise ValueError(
+                f"multi-value condition '{condition}' contains missing values "
+                f"for case_id(s): {case_ids}{suffix}. Missing multi-value "
+                "categories are not part of the declared logical domain and "
+                "would otherwise be excluded from minimization."
+            )
+
+    def _validate_declared_multivalue_domains(self) -> None:
+        """Validate declared multi-value domains against observed data."""
+        spec_map = self.condition_spec_map
+        for condition in self.multivalue_conditions:
+            spec = spec_map.get(condition)
+            if spec is None or spec.domain is None:
+                continue
+            domain_values = list(spec.domain)
+            if not domain_values:
+                raise ValueError(
+                    f"multi-value condition '{condition}' has an empty domain."
+                )
+            if condition not in self.data.columns:
+                continue
+            observed = self.data[condition].dropna().unique().tolist()
+            outside = [value for value in observed if value not in domain_values]
+            if outside:
+                raise ValueError(
+                    f"Observed values for multi-value condition '{condition}' "
+                    f"are not present in its declared domain: {outside}. "
+                    f"Declared domain: {domain_values}."
+                )
+
+    def _multivalue_domain(self, condition: str) -> list[Any]:
+        """Return the declared or observed domain for a multi-value condition."""
+        spec = self.condition_spec_map.get(condition)
+        if spec is not None and spec.domain is not None:
+            return list(spec.domain)
+        if spec is not None and spec.value_columns:
+            return list(spec.value_columns)
+        if condition not in self.data.columns:
+            return []
+        return self._sorted_unique(self.data[condition])
+
+    def _has_complete_multivalue_membership_columns(self, condition: str) -> bool:
+        domain = self._multivalue_domain(condition)
+        if not domain:
+            return False
+        return all(
+            self._find_multivalue_membership_column(condition, value) is not None
+            for value in domain
+        )
+
+    def _multivalue_membership_column_map(
+        self,
+        condition: str,
+    ) -> dict[Any, str]:
+        mapping: dict[Any, str] = {}
+        for value in self._multivalue_domain(condition):
+            column = self._find_multivalue_membership_column(condition, value)
+            if column is not None:
+                mapping[value] = column
+        return mapping
+
+    def _find_multivalue_membership_column(
+        self,
+        condition: str,
+        value: Any,
+    ) -> str | None:
+        for candidate in self._multivalue_membership_column_candidates(
+            condition, value
+        ):
+            if candidate in self.data.columns:
+                return candidate
+        return None
+
+    @classmethod
+    def _multivalue_membership_column_name(cls, condition: str, value: Any) -> str:
+        return f"{condition}={cls._value_tokens(value)[0]}"
+
+    @classmethod
+    def _multivalue_membership_column_candidates(
+        cls,
+        condition: str,
+        value: Any,
+    ) -> list[str]:
+        candidates: list[str] = []
+        for token in cls._value_tokens(value):
+            candidates.extend(
+                [
+                    f"{condition}={token}",
+                    f"{condition}[{token}]",
+                    f"{condition}__{token}",
+                ]
+            )
+        return list(dict.fromkeys(candidates))
+
+    @staticmethod
+    def _value_tokens(value: Any) -> list[str]:
+        tokens = [str(value)]
+        if isinstance(value, float) and value.is_integer():
+            tokens.append(str(int(value)))
+        return list(dict.fromkeys(tokens))
+
     # ------------------------------------------------------------------
     # Literal generation
     # ------------------------------------------------------------------
@@ -657,7 +878,7 @@ class QCAEngineBase:
                 literals.append(SetLiteral(c, negated=True))
 
         for c in self.multivalue_conditions:
-            for v in self._sorted_unique(self.data[c]):
+            for v in self._multivalue_domain(c):
                 literals.append(MultiValueLiteral(c, v))
 
         return literals
@@ -685,7 +906,7 @@ class QCAEngineBase:
     ) -> bool:
         """Return whether a literal combination contains contradictions."""
         set_seen: dict[str, set[bool]] = {}
-        mv_values: dict[str, set[Any]] = {}
+        mv_literals: dict[str, list[MultiValueLiteral]] = {}
 
         for lit in literals:
             if isinstance(lit, SetLiteral):
@@ -694,10 +915,10 @@ class QCAEngineBase:
                 if len(negation_set) > 1:
                     return True
             elif isinstance(lit, MultiValueLiteral):
-                value_set = mv_values.setdefault(lit.name, set())
-                value_set.add(lit.value)
-                if len(value_set) > 1:
+                same_condition = mv_literals.setdefault(lit.name, [])
+                if any(lit.conflicts_with(existing) for existing in same_condition):
                     return True
+                same_condition.append(lit)
 
         return False
 
@@ -994,8 +1215,11 @@ class QCAEngineBase:
     def build_truth_table(
         self,
         outcome_threshold: float = 0.5,
+        pri_cut: float = 0.0,
     ) -> list[TruthTableRow]:
         """Build a QCA truth table."""
+        self._validate_optional_cutoff("outcome_threshold", outcome_threshold)
+        self._validate_optional_cutoff("pri_cut", pri_cut)
         work = self.data.copy()
 
         # Binarize set conditions into temporary grouping columns.
@@ -1005,9 +1229,13 @@ class QCAEngineBase:
             work[col] = (work[c] >= MEMBERSHIP_THRESHOLD).astype(int)
             crisp_col_map[c] = col
 
+        multivalue_col_map: dict[str, str] = {}
+        for c in self.multivalue_conditions:
+            multivalue_col_map[c] = self._truth_table_multivalue_group_column(work, c)
+
         group_cols = [
             *crisp_col_map.values(),
-            *self.multivalue_conditions,
+            *multivalue_col_map.values(),
         ]
 
         rows: list[TruthTableRow] = []
@@ -1026,8 +1254,8 @@ class QCAEngineBase:
             y_vals = group_data[self.outcome].astype(float)
             outcome_mean = float(y_vals.mean())
 
-            # Calculate row consistency using the original fuzzy scores.
-            row_consist = self._calc_row_consistency(config, group_idx, y_vals)
+            # Calculate row consistency using the original calibrated scores.
+            row_consist, pri_consist = self._calc_row_consistency_scores(config)
 
             case_ids = group_data[self.case_id].astype(str).tolist()
 
@@ -1038,19 +1266,97 @@ class QCAEngineBase:
                     outcome_mean=outcome_mean,
                     outcome_raw_consist=row_consist,
                     case_ids=case_ids,
-                    include=outcome_mean >= outcome_threshold,
+                    include=(
+                        row_consist >= outcome_threshold
+                        and pri_consist >= float(pri_cut)
+                    ),
+                    pri_consistency=pri_consist,
                 )
             )
 
         rows.sort(key=lambda r: (-r.outcome_mean, -r.n_cases))
         return rows
 
+    def _truth_table_multivalue_group_column(
+        self,
+        work: pd.DataFrame,
+        condition: str,
+    ) -> str:
+        """Return the column used to assign multi-value cases to truth rows."""
+        if not self._uses_multivalue_membership_columns(condition):
+            return condition
+
+        group_column = f"__gsqca_corner_{condition}"
+        work[group_column] = self._assign_multivalue_corner(condition)
+        return group_column
+
+    def _uses_multivalue_membership_columns(self, condition: str) -> bool:
+        """Return whether a multi-value condition has calibrated value sets."""
+        if not self._multivalue_membership_column_map(condition):
+            return False
+        spec = self.condition_spec_map.get(condition)
+        return (
+            condition not in self.data.columns
+            or (spec is not None and spec.calibrated is True)
+            or (spec is not None and bool(spec.value_columns))
+        )
+
+    def _assign_multivalue_corner(self, condition: str) -> pd.Series:
+        """Assign cases to the strongest value set for truth-table display."""
+        domain = self._multivalue_domain(condition)
+        if not domain:
+            raise ValueError(
+                f"multi-value condition '{condition}' needs a declared domain "
+                "when it is represented by value-specific membership columns."
+            )
+
+        memberships = pd.concat(
+            [
+                MultiValueLiteral(condition, value).membership(self.data)
+                for value in domain
+            ],
+            axis=1,
+        )
+        memberships.columns = list(range(len(domain)))
+        max_membership = memberships.max(axis=1)
+
+        tie_mask = memberships.eq(max_membership, axis=0).sum(axis=1) > 1
+        if tie_mask.any():
+            warnings.warn(
+                f"multi-value condition '{condition}' has {int(tie_mask.sum())} "
+                "case(s) tied between value-specific membership columns. "
+                "The first declared domain value is used for truth-table row "
+                "assignment; consistency is still computed from fuzzy "
+                "memberships over all cases.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        crossover_mask = (
+            (max_membership - MEMBERSHIP_THRESHOLD).abs() < CROSSOVER_EPSILON
+        )
+        if crossover_mask.any():
+            warnings.warn(
+                f"multi-value condition '{condition}' has "
+                f"{int(crossover_mask.sum())} case(s) whose strongest "
+                "membership is exactly at the 0.5 crossover point.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        chosen_positions = memberships.to_numpy(dtype=float).argmax(axis=1)
+        return pd.Series(
+            [domain[position] for position in chosen_positions],
+            index=self.data.index,
+        )
+
     def truth_table_to_df(
         self,
         outcome_threshold: float = 0.5,
+        pri_cut: float = 0.0,
     ) -> pd.DataFrame:
         """Return the truth table as a DataFrame."""
-        rows = self.build_truth_table(outcome_threshold)
+        rows = self.build_truth_table(outcome_threshold, pri_cut=pri_cut)
         return truth_table_to_df(rows)
 
     def _keys_to_config(self, keys: tuple[Any, ...]) -> dict[str, Any]:
@@ -1069,26 +1375,48 @@ class QCAEngineBase:
     def _calc_row_consistency(
         self,
         config: dict[str, Any],
-        group_idx: pd.Index,
-        y_vals: pd.Series,
     ) -> float:
         """Compute row-level truth-table consistency."""
+        return self._calc_row_consistency_scores(config)[0]
+
+    def _calc_row_pri_consistency(
+        self,
+        config: dict[str, Any],
+    ) -> float:
+        """Compute row-level proportional-reduction-in-inconsistency."""
+        return self._calc_row_consistency_scores(config)[1]
+
+    def _calc_row_consistency_scores(
+        self,
+        config: dict[str, Any],
+    ) -> tuple[float, float]:
+        """Compute row-level sufficiency consistency and PRI consistency."""
         config_literals = self._config_to_literals(config)
 
-        # Compute conjunction membership over all data, then select cases in
-        # the current group using group_idx.
-        x_vals = (
-            self.conjunction_membership(config_literals).loc[group_idx].astype(float)
-        )
+        # Fuzzy truth-table inclusion is evaluated over the full case universe,
+        # not only over cases assigned to the crisp truth-table corner.
+        x_vals = self.conjunction_membership(config_literals).astype(float)
+        y_vals = self.outcome_series
 
         x_arr = x_vals.to_numpy(dtype=float)
         y_arr = y_vals.to_numpy(dtype=float)
         x_sum = float(x_arr.sum())
 
         if np.isclose(x_sum, 0.0, atol=ZERO_EPSILON):
-            return 0.0
+            return 0.0, 0.0
 
-        return float(np.minimum(x_arr, y_arr).sum()) / x_sum
+        positive_overlap = float(np.minimum(x_arr, y_arr).sum())
+        negative_overlap = float(np.minimum(x_arr, 1.0 - y_arr).sum())
+        consistency = positive_overlap / x_sum
+
+        pri_denominator = x_sum - negative_overlap
+        if np.isclose(pri_denominator, 0.0, atol=ZERO_EPSILON):
+            pri = 0.0
+        else:
+            pri = (positive_overlap - negative_overlap) / pri_denominator
+            pri = min(1.0, max(0.0, pri))
+
+        return float(consistency), float(pri)
 
     def _config_to_literals(
         self, config: dict[str, Any]

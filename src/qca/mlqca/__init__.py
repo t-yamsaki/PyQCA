@@ -37,15 +37,15 @@ from qca.mlqca.fuzzy import (
     propose_fuzzy_anchors,
     run_anchor_sensitivity,
 )
-from qca.mlqca.importance import extract_xgboost_importance
-from qca.mlqca.mixed import (
-    MixedCalibrationSet,
-    MixedConditionKind,
-    MLQCAMixedResult,
-    calibrate_mixed_conditions,
-    fit_mixedqca_from_calibration,
-    fit_mixedqca_from_predictor,
+from qca.mlqca.gsqca import (
+    GSQCACalibrationSet,
+    GSQCAConditionKind,
+    MLQCAGSQCAResult,
+    calibrate_gsqca_conditions,
+    fit_gsqca_from_calibration,
+    fit_gsqca_from_predictor,
 )
+from qca.mlqca.importance import extract_xgboost_importance
 from qca.mlqca.reporting import generate_mlqca_markdown_report
 from qca.mlqca.reproducibility import (
     collect_mlqca_reproducibility,
@@ -123,15 +123,15 @@ __all__ = [
     "run_anchor_sensitivity",
     "validate_mlqca_input",
     "xgboost_split_nodes",
-    "MLQCAMixedResult",
-    "MixedCalibrationSet",
-    "MixedConditionKind",
-    "calibrate_mixed_conditions",
+    "MLQCAGSQCAResult",
+    "GSQCACalibrationSet",
+    "GSQCAConditionKind",
+    "calibrate_gsqca_conditions",
     "collect_mlqca_reproducibility",
     "cross_validate_mlqca",
     "dataframe_fingerprint",
-    "fit_mixedqca_from_calibration",
-    "fit_mixedqca_from_predictor",
+    "fit_gsqca_from_calibration",
+    "fit_gsqca_from_predictor",
     "generate_mlqca_markdown_report",
     "plot_mlqca_cutoffs",
     "plot_mlqca_frontier",

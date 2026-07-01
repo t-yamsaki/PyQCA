@@ -1,4 +1,4 @@
-"""Phase 15: README Roadmap v0.6 reporting and reproducibility tests."""
+"""Reporting and reproducibility tests."""
 
 from __future__ import annotations
 

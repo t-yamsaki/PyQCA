@@ -181,6 +181,7 @@ class TruthTableRow:
     outcome_raw_consist: float
     case_ids: list[str]
     include: bool | None = None
+    pri_consistency: float | None = None
 
     # ------------------------------------------------------------------
     # Validate compatibility with TruthTableRowProtocol.
@@ -197,6 +198,13 @@ class TruthTableRow:
             raise ValueError(
                 "outcome_raw_consist must be within [0, 1]. "
                 f"Received: {self.outcome_raw_consist}"
+            )
+        if self.pri_consistency is not None and not (
+            0.0 <= self.pri_consistency <= 1.0
+        ):
+            raise ValueError(
+                "pri_consistency must be within [0, 1]. "
+                f"Received: {self.pri_consistency}"
             )
         if self.n_cases < 0:
             raise ValueError(
@@ -237,6 +245,11 @@ class TruthTableRow:
         record["n_cases"] = self.n_cases
         record["outcome_mean"] = round(self.outcome_mean, 4)
         record["outcome_raw_consist"] = round(self.outcome_raw_consist, 4)
+        record["pri_consistency"] = (
+            None
+            if self.pri_consistency is None
+            else round(self.pri_consistency, 4)
+        )
         record["include"] = self.include
         record["cases"] = ", ".join(self.case_ids)
         return record
@@ -254,13 +267,15 @@ class TruthTableRow:
         cases_preview = ", ".join(self.case_ids[:5]) + (
             " ..." if len(self.case_ids) > 5 else ""
         )
-        include_str = {True: "✓", False: "✗", None: "?"}[self.include]
+        include_str = {True: "yes", False: "no", None: "?"}[self.include]
         return (
             f"TruthTableRow(\n"
             f"  config       = {{{config_str}}}\n"
             f"  n_cases      = {self.n_cases}\n"
             f"  outcome_mean = {self.outcome_mean:.3f}\n"
             f"  row_consist  = {self.outcome_raw_consist:.3f}\n"
+            f"  pri_consist  = "
+            f"{self.pri_consistency if self.pri_consistency is not None else 'N/A'}\n"
             f"  include      = {include_str}\n"
             f"  cases        = [{cases_preview}]\n"
             f")"

@@ -1,4 +1,4 @@
-"""Phase 17: mlQCA P1 XGBoost backend tests."""
+"""mlQCA XGBoost backend tests."""
 
 from __future__ import annotations
 

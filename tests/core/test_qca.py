@@ -1,4 +1,4 @@
-"""Phase 8: README Roadmap v0.1 Core QCA acceptance tests."""
+"""Core QCA engine acceptance tests."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ import pytest
 from qca import (
     CSQCA,
     FSQCA,
+    GSQCA,
     MVQCA,
-    MixedQCA,
     calibrate_crisp,
     calibrate_piecewise,
 )
@@ -50,7 +50,7 @@ def prepared_core_df(core_df: pd.DataFrame) -> pd.DataFrame:
 
 def test_v01_data_validation(core_df):
     with pytest.raises(ValueError, match="Required columns|DataFrame"):
-        MixedQCA(
+        GSQCA(
             data=core_df,
             case_id="case",
             conditions=["missing"],
@@ -61,7 +61,7 @@ def test_v01_data_validation(core_df):
     invalid = core_df.copy()
     invalid["outcome"] = invalid["outcome"] + 1.0
     with pytest.raises(ValueError, match=r"\[0, 1\]"):
-        MixedQCA(
+        GSQCA(
             data=invalid,
             case_id="case",
             conditions=["quality"],
@@ -77,9 +77,9 @@ def test_v01_calibration_outputs_are_qca_ready(core_df):
     assert df["quality_fuzzy"].dropna().between(0.0, 1.0).all()
 
 
-def test_v01_mixed_core_analysis(core_df):
+def test_v01_generalized_core_analysis(core_df):
     df = prepared_core_df(core_df)
-    model = MixedQCA(
+    model = GSQCA(
         data=df,
         case_id="case",
         conditions=["score_high", "quality_fuzzy", "channel"],

@@ -7,7 +7,8 @@ Scope:
 - `src/qca/sweep/threshold.py`
 - `src/qca/minimizers/`
 - `src/qca/mlqca/`
-- the former private MixedQCA project used as the starting point for PyQCA
+- the former private first-party predecessor project used as the starting
+  point for PyQCA
 
 This is a source-provenance review for release preparation. It is not a legal
 opinion.
@@ -22,8 +23,8 @@ notice in `THIRD_PARTY_NOTICES.md`.
   the PyQCA minimizer implementation.
 - The mlQCA implementation uses the published protocol and public package API
   as methodological references without translating R source code.
-- The former private MixedQCA project was authored by the PyQCA copyright
-  holder and introduces no third-party licensing requirement.
+- The former private first-party predecessor project was authored by the PyQCA
+  copyright holder and introduces no third-party licensing requirement.
 
 ## Materials Reviewed
 
@@ -83,7 +84,7 @@ Both implementations:
 PyQCA differs materially in implementation:
 
 - Python/pandas dataclasses replace R data frames and S3 result classes;
-- PyQCA invokes its own `MixedQCA` and minimization backends rather than
+- PyQCA invokes its own `GSQCA` and minimization backends rather than
   `QCA::truthTable()` and `QCA::minimize()`;
 - validation, exception handling, result storage, plotting, and Markdown
   generation are independently implemented;
@@ -120,11 +121,11 @@ line-by-line control flow were identified in the PyQCA minimizer modules.
 Quine-McCluskey and set cover are published algorithms and were implemented in
 PyQCA using Python-native data structures.
 
-## MixedQCA Origin
+## First-Party Predecessor Origin
 
-The former MixedQCA project was private and authored by the same copyright
-holder as PyQCA. It is first-party code and therefore does not require a
-third-party notice.
+The predecessor project was private and authored by the same copyright holder
+as PyQCA. It is first-party code and therefore does not require a third-party
+notice.
 
 ## mlQCA Findings
 
@@ -133,7 +134,7 @@ modules define PyQCA-specific configuration, validation, result contracts, an
 optional XGBoost backend, feature-importance summaries, split-threshold
 aggregation, crisp calibration, csQCA evaluation, condition-combination
 search, Pareto analysis, fuzzy-anchor proposals, fsQCA calibration, and anchor
-sensitivity adapters. MixedQCA integration, Markdown reporting,
+sensitivity adapters. GSQCA integration, Markdown reporting,
 visualization, and reproducibility metadata are also independently
 implemented with PyQCA-native components. P6 adds stratified cross-validation,
 stratified bootstrap with out-of-bag evaluation, and aggregate feature and

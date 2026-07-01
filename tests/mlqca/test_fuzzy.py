@@ -1,4 +1,4 @@
-"""Phase 20: mlQCA P4 fuzzy anchors and sensitivity tests."""
+"""mlQCA fuzzy anchor and sensitivity tests."""
 
 from __future__ import annotations
 

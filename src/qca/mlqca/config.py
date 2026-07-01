@@ -8,7 +8,7 @@ from types import MappingProxyType
 from typing import Any, Literal
 
 MLQCAMode = Literal["conservative", "radical"]
-MLQCAEngine = Literal["csqca", "fsqca", "mixed"]
+MLQCAEngine = Literal["csqca", "fsqca", "gsqca"]
 MLQCAValidation = Literal["paper", "cv", "bootstrap"]
 
 
@@ -36,7 +36,7 @@ class MLQCAConfig:
 
     def __post_init__(self) -> None:
         _validate_choice("mode", self.mode, {"conservative", "radical"})
-        _validate_choice("engine", self.engine, {"csqca", "fsqca", "mixed"})
+        _validate_choice("engine", self.engine, {"csqca", "fsqca", "gsqca"})
         _validate_choice("validation", self.validation, {"paper", "cv", "bootstrap"})
         _validate_positive_int("top_k", self.top_k)
         _validate_positive_int("model_size", self.model_size)

@@ -90,12 +90,18 @@ class QCAMinimizer:
         self,
         truth_table_rows: list[TruthTableRowProtocol],
         outcome_threshold: float = 0.75,
-        consistency_threshold: float = 0.75,
+        consistency_threshold: float | None = None,
+        pri_cut: float = 0.0,
         frequency_cutoff: int = 1,
         directional_expectations: DirectionalExpectations | None = None,
         include_remainders_in_parsimonious: bool = True,
     ) -> QMSolution:
         """Derive complex, parsimonious, and intermediate solutions."""
+        resolved_consistency_threshold = (
+            outcome_threshold
+            if consistency_threshold is None
+            else consistency_threshold
+        )
         # Step 1: Classify truth-table rows.
         (
             positive_indices,
@@ -109,7 +115,8 @@ class QCAMinimizer:
             condition_names=self.condition_names,
             is_multivalue_flags=self.is_multivalue_flags,
             outcome_threshold=outcome_threshold,
-            consistency_threshold=consistency_threshold,
+            consistency_threshold=resolved_consistency_threshold,
+            pri_cut=pri_cut,
             frequency_cutoff=frequency_cutoff,
         )
 
@@ -125,7 +132,8 @@ class QCAMinimizer:
             warnings.warn(
                 "No positive rows were found. Consider lowering "
                 f"outcome_threshold ({outcome_threshold}) or "
-                f"consistency_threshold ({consistency_threshold}).",
+                f"consistency_threshold ({resolved_consistency_threshold}) "
+                f"or pri_cut ({pri_cut}).",
                 UserWarning,
                 stacklevel=2,
             )
@@ -282,7 +290,8 @@ class QCAMinimizer:
         self,
         truth_table_rows: list[TruthTableRowProtocol],
         outcome_threshold: float = 0.75,
-        consistency_threshold: float = 0.75,
+        consistency_threshold: float | None = None,
+        pri_cut: float = 0.0,
         frequency_cutoff: int = 1,
     ) -> dict[str, MintermList]:
         """Classify rows."""
@@ -294,6 +303,7 @@ class QCAMinimizer:
             is_multivalue_flags=self.is_multivalue_flags,
             outcome_threshold=outcome_threshold,
             consistency_threshold=consistency_threshold,
+            pri_cut=pri_cut,
             frequency_cutoff=frequency_cutoff,
         )
         return {
@@ -307,7 +317,8 @@ class QCAMinimizer:
         self,
         truth_table_rows: list[TruthTableRowProtocol],
         outcome_threshold: float = 0.75,
-        consistency_threshold: float = 0.75,
+        consistency_threshold: float | None = None,
+        pri_cut: float = 0.0,
         frequency_cutoff: int = 1,
         directional_expectations: DirectionalExpectations | None = None,
     ) -> pd.DataFrame:
@@ -320,6 +331,7 @@ class QCAMinimizer:
             is_multivalue_flags=self.is_multivalue_flags,
             outcome_threshold=outcome_threshold,
             consistency_threshold=consistency_threshold,
+            pri_cut=pri_cut,
             frequency_cutoff=frequency_cutoff,
         )
 
@@ -356,20 +368,24 @@ class QCAMinimizer:
 
 
 # ---------------------------------------------------------------------------
-# Helper for direct execution from MixedQCA.
+# Helper for direct execution from QCA engine instances.
 # ---------------------------------------------------------------------------
 
 
 def minimize_truth_table(
     qca: QCAEngineBase,
     outcome_threshold: float = 0.75,
-    consistency_threshold: float = 0.75,
+    consistency_threshold: float | None = None,
+    pri_cut: float = 0.0,
     frequency_cutoff: int = 1,
     directional_expectations: DirectionalExpectations | None = None,
     include_remainders_in_parsimonious: bool = True,
     backend: str = "qmc",
 ) -> QMSolution:
     """Run QCA minimization directly from a model instance."""
+    resolved_consistency_threshold = (
+        outcome_threshold if consistency_threshold is None else consistency_threshold
+    )
     # Build condition domains automatically.
     condition_domains: ConditionDomains = {}
     is_multivalue: IsMultiValueMap = {}
@@ -379,8 +395,7 @@ def minimize_truth_table(
         is_multivalue[c] = False
 
     for c in qca.multivalue_conditions:
-        unique_vals = qca._sorted_unique(qca.data[c])
-        condition_domains[c] = unique_vals
+        condition_domains[c] = qca._multivalue_domain(c)
         is_multivalue[c] = True
 
     condition_names = qca.all_condition_names
@@ -407,12 +422,16 @@ def minimize_truth_table(
             backend_name=normalized_backend,
         )
 
-    truth_table_rows = qca.build_truth_table(outcome_threshold=outcome_threshold)
+    truth_table_rows = qca.build_truth_table(
+        outcome_threshold=resolved_consistency_threshold,
+        pri_cut=pri_cut,
+    )
 
     return minimizer.minimize(
         truth_table_rows=truth_table_rows,
         outcome_threshold=outcome_threshold,
-        consistency_threshold=consistency_threshold,
+        consistency_threshold=resolved_consistency_threshold,
+        pri_cut=pri_cut,
         frequency_cutoff=frequency_cutoff,
         directional_expectations=directional_expectations,
         include_remainders_in_parsimonious=include_remainders_in_parsimonious,

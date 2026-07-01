@@ -15,7 +15,7 @@ class ConditionSpec:
 
     Public engines can accept friendly APIs such as ``conditions`` plus
     ``condition_types`` or legacy ``set_conditions``. Internally they should
-    converge on this small schema object so csQCA, fsQCA, mvQCA, and MixedQCA
+    converge on this small schema object so csQCA, fsQCA, mvQCA, and gsQCA
     share the same condition contract.
     """
 
@@ -23,12 +23,20 @@ class ConditionSpec:
     kind: ConditionKind
     domain: tuple[Any, ...] | None = None
     calibrated: bool | None = None
+    value_columns: Mapping[Any, str] | None = None
 
     def __post_init__(self) -> None:
         if not str(self.name).strip():
             raise ValueError("ConditionSpec.name must be a non-empty string.")
         normalized_kind = normalize_condition_kind(self.name, self.kind)
         object.__setattr__(self, "kind", normalized_kind)
+        if self.value_columns is not None:
+            value_columns = {
+                value: str(column) for value, column in dict(self.value_columns).items()
+            }
+            object.__setattr__(self, "value_columns", value_columns)
+            if self.domain is None:
+                object.__setattr__(self, "domain", tuple(value_columns.keys()))
         if self.domain is not None and not isinstance(self.domain, tuple):
             object.__setattr__(self, "domain", tuple(self.domain))
 
@@ -54,6 +62,7 @@ class ConditionSpec:
             "kind": self.kind,
             "domain": self.domain,
             "calibrated": self.calibrated,
+            "value_columns": dict(self.value_columns or {}),
         }
 
 
@@ -119,7 +128,10 @@ def condition_specs_from_schema(schema: Any) -> list[ConditionSpec]:
     - a sequence of mapping objects with ``name`` and ``kind``/``type`` fields;
     - a pandas-like DataFrame with matching columns.
 
-    Optional mapping/DataFrame fields are ``domain`` and ``calibrated``.
+    Optional mapping/DataFrame fields are ``domain``, ``calibrated``, and
+    ``value_columns``. ``value_columns`` maps a multi-value domain value to a
+    calibrated membership column, which is the schema representation used for
+    generalized-set QCA multivalent fuzzy set variables.
     """
     if _is_dataframe_like(schema):
         records = schema.to_dict(orient="records")
@@ -164,11 +176,13 @@ def _condition_spec_from_mapping(row: Mapping[str, Any]) -> ConditionSpec:
 
     domain = row.get("domain")
     calibrated = row.get("calibrated")
+    value_columns = row.get("value_columns", row.get("membership_columns"))
     return ConditionSpec(
         name=str(name),
         kind=str(kind),
         domain=None if _is_missing(domain) else domain,
         calibrated=None if _is_missing(calibrated) else bool(calibrated),
+        value_columns=None if _is_missing(value_columns) else value_columns,
     )
 
 

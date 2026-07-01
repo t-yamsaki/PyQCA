@@ -1,4 +1,4 @@
-"""Phase 13: README Roadmap v0.4 ThresholdSweep acceptance tests."""
+"""ThresholdSweep acceptance tests."""
 
 from __future__ import annotations
 
@@ -106,6 +106,36 @@ def test_v04_outcome_threshold_sweep(raw_threshold_df) -> None:
     assert len(result.details) == 2
     assert result.stability["n_runs"] == 2
     assert result.truth_tables
+
+
+def test_threshold_sweep_passes_pri_cut_to_fit(raw_threshold_df, monkeypatch) -> None:
+    from qca.sweep import threshold as threshold_module
+
+    seen: list[float | None] = []
+    original_fit = threshold_module.GSQCA.fit
+
+    def spy_fit(self, *args, **kwargs):
+        seen.append(kwargs.get("pri_cut"))
+        return original_fit(self, *args, **kwargs)
+
+    monkeypatch.setattr(threshold_module.GSQCA, "fit", spy_fit)
+    sweep = ThresholdSweep(
+        raw_threshold_df,
+        outcome="Y",
+        conditions=["X1", "X2"],
+        case_id="case",
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sweep.outcome(
+            thresholds=[1],
+            condition_thresholds={"X1": 5, "X2": 5},
+            incl_cut=0.5,
+            pri_cut=0.4,
+        )
+
+    assert seen == [0.4]
 
 
 def test_v04_single_condition_threshold_sweep(raw_threshold_df) -> None:

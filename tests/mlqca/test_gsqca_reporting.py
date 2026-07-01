@@ -1,4 +1,4 @@
-"""Phase 21: mlQCA P5 MixedQCA, reporting, viz, and reproducibility tests."""
+"""mlQCA GSQCA, reporting, visualization, and reproducibility tests."""
 
 from __future__ import annotations
 
@@ -10,17 +10,17 @@ import pandas as pd
 import pytest
 
 from qca import (
-    MixedCalibrationSet,
+    GSQCACalibrationSet,
     MLQCAConfig,
-    MLQCAMixedResult,
+    MLQCAGSQCAResult,
     MLQCAResult,
     PredictorFitResult,
-    calibrate_mixed_conditions,
+    calibrate_gsqca_conditions,
     collect_mlqca_reproducibility,
     collect_reproducibility_metadata,
     dataframe_fingerprint,
-    fit_mixedqca_from_calibration,
-    fit_mixedqca_from_predictor,
+    fit_gsqca_from_calibration,
+    fit_gsqca_from_predictor,
     generate_markdown_report,
     generate_mlqca_markdown_report,
     validate_mlqca_input,
@@ -28,7 +28,7 @@ from qca import (
 
 
 @pytest.fixture
-def mixed_ml_df() -> pd.DataFrame:
+def gsqca_ml_df() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "case": [f"c{i}" for i in range(1, 13)],
@@ -41,7 +41,7 @@ def mixed_ml_df() -> pd.DataFrame:
 
 
 @pytest.fixture
-def mixed_predictor() -> PredictorFitResult:
+def gsqca_predictor() -> PredictorFitResult:
     return PredictorFitResult(
         backend="xgboost",
         model=object(),
@@ -70,22 +70,22 @@ def mixed_predictor() -> PredictorFitResult:
     )
 
 
-def _validated(mixed_ml_df):
+def _validated(gsqca_ml_df):
     return validate_mlqca_input(
-        mixed_ml_df,
+        gsqca_ml_df,
         "Y",
         candidates=["policy", "capacity", "region"],
         case_id="case",
     )
 
 
-def test_mixed_calibration_builds_unified_schema(
-    mixed_ml_df,
-    mixed_predictor,
+def test_gsqca_calibration_builds_unified_schema(
+    gsqca_ml_df,
+    gsqca_predictor,
 ) -> None:
-    calibration = calibrate_mixed_conditions(
-        _validated(mixed_ml_df),
-        mixed_predictor,
+    calibration = calibrate_gsqca_conditions(
+        _validated(gsqca_ml_df),
+        gsqca_predictor,
         {
             "policy": "crisp",
             "capacity": "fuzzy",
@@ -93,7 +93,7 @@ def test_mixed_calibration_builds_unified_schema(
         },
     )
 
-    assert isinstance(calibration, MixedCalibrationSet)
+    assert isinstance(calibration, GSQCACalibrationSet)
     assert calibration.conditions == (
         "policy__crisp",
         "capacity__fuzzy",
@@ -104,15 +104,15 @@ def test_mixed_calibration_builds_unified_schema(
         "capacity__fuzzy": "fuzzy",
         "region": "multi",
     }
-    assert calibration.workflow == "mixed-crisp-fuzzy-multi"
+    assert calibration.workflow == "GSQCA-crisp-fuzzy-multi"
     assert set(calibration.proposals["kind"]) == {"crisp", "fuzzy", "multi"}
 
 
-def test_mixedqca_connections(mixed_ml_df, mixed_predictor) -> None:
-    validated = _validated(mixed_ml_df)
-    calibration = calibrate_mixed_conditions(
+def test_gsqca_connections(gsqca_ml_df, gsqca_predictor) -> None:
+    validated = _validated(gsqca_ml_df)
+    calibration = calibrate_gsqca_conditions(
         validated,
-        mixed_predictor,
+        gsqca_predictor,
         {
             "policy": "crisp",
             "capacity": "fuzzy",
@@ -122,14 +122,14 @@ def test_mixedqca_connections(mixed_ml_df, mixed_predictor) -> None:
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        direct = fit_mixedqca_from_calibration(
+        direct = fit_gsqca_from_calibration(
             calibration,
             consistency_cutoff=0.5,
             outcome_threshold=0.5,
         )
-        combined = fit_mixedqca_from_predictor(
+        combined = fit_gsqca_from_predictor(
             validated,
-            mixed_predictor,
+            gsqca_predictor,
             {
                 "policy": "crisp",
                 "capacity": "fuzzy",
@@ -139,28 +139,28 @@ def test_mixedqca_connections(mixed_ml_df, mixed_predictor) -> None:
             outcome_threshold=0.5,
         )
 
-    assert isinstance(direct, MLQCAMixedResult)
-    assert direct.engine.qca_type == "MixedQCA"
-    assert direct.engine.workflow == "mixed-crisp-fuzzy-multi"
-    assert combined.fit_result.qca_type == "MixedQCA"
+    assert isinstance(direct, MLQCAGSQCAResult)
+    assert direct.engine.qca_type == "GSQCA"
+    assert direct.engine.workflow == "GSQCA-crisp-fuzzy-multi"
+    assert combined.fit_result.qca_type == "GSQCA"
 
 
-def test_mixed_calibration_validates_complete_kind_map(
-    mixed_ml_df,
-    mixed_predictor,
+def test_gsqca_calibration_validates_complete_kind_map(
+    gsqca_ml_df,
+    gsqca_predictor,
 ) -> None:
     with pytest.raises(ValueError, match="missing entries"):
-        calibrate_mixed_conditions(
-            _validated(mixed_ml_df),
-            mixed_predictor,
+        calibrate_gsqca_conditions(
+            _validated(gsqca_ml_df),
+            gsqca_predictor,
             {"policy": "crisp"},
         )
 
 
-def test_dataframe_fingerprint_is_stable_and_sensitive(mixed_ml_df) -> None:
-    first = dataframe_fingerprint(mixed_ml_df)
-    second = dataframe_fingerprint(mixed_ml_df.copy())
-    changed = mixed_ml_df.copy()
+def test_dataframe_fingerprint_is_stable_and_sensitive(gsqca_ml_df) -> None:
+    first = dataframe_fingerprint(gsqca_ml_df)
+    second = dataframe_fingerprint(gsqca_ml_df.copy())
+    changed = gsqca_ml_df.copy()
     changed.loc[0, "policy"] = 99
 
     assert first == second
@@ -169,10 +169,10 @@ def test_dataframe_fingerprint_is_stable_and_sensitive(mixed_ml_df) -> None:
 
 
 def test_mlqca_reproducibility_metadata(
-    mixed_ml_df,
-    mixed_predictor,
+    gsqca_ml_df,
+    gsqca_predictor,
 ) -> None:
-    validated = _validated(mixed_ml_df)
+    validated = _validated(gsqca_ml_df)
     config = MLQCAConfig(
         mode="radical",
         top_k=3,
@@ -181,7 +181,7 @@ def test_mlqca_reproducibility_metadata(
     )
     metadata = collect_mlqca_reproducibility(
         validated,
-        mixed_predictor,
+        gsqca_predictor,
         config,
         extra={"study": "acceptance"},
     )

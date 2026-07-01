@@ -1,4 +1,4 @@
-"""Phase 16: mlQCA P0 configuration, results, and validation tests."""
+"""mlQCA configuration, results, and validation tests."""
 
 from __future__ import annotations
 
