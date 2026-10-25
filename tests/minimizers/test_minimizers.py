@@ -398,9 +398,10 @@ class TestSelectEssential:
 
     def test_empty_inputs(self):
         assert select_essential_prime_implicants([], []) == []
-        assert select_essential_prime_implicants([], [1, 2]) == []
+        with pytest.raises(ValueError, match="cover"):
+            select_essential_prime_implicants([], [1, 2])
 
-    def test_greedy_prefers_low_complexity(self):
+    def test_exact_prefers_low_complexity(self):
         """Regression coverage."""
         pi = [
             Implicant(

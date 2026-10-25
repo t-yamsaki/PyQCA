@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from qca._constants import DONT_CARE
+from qca.minimizers._cover import exact_set_cover
 from qca.minimizers.implicant import Implicant
 
 # ---------------------------------------------------------------------------
@@ -209,60 +209,12 @@ def select_essential_prime_implicants(
     prime_implicants: list[Implicant],
     target_minterms: list[int],
 ) -> list[Implicant]:
-    """Select essential prime implicants for a minimum cover."""
-    if not prime_implicants or not target_minterms:
-        return []
+    """Select one exact minimum cover, including all essential implicants.
 
-    target_set = set(target_minterms)
-    selected: list[Implicant] = []
-    selected_set: set[int] = set()  # Selected indices, used to prevent duplicates.
-    covered: set[int] = set()
-
-    # Step 1: Identify essential prime implicants.
-    for m in target_minterms:
-        covering = [
-            (i, imp) for i, imp in enumerate(prime_implicants) if m in imp.covered
-        ]
-        if len(covering) == 1:
-            idx, imp = covering[0]
-            if idx not in selected_set:
-                selected.append(imp)
-                selected_set.add(idx)
-                covered |= imp.covered
-
-    # Step 2: Complete coverage greedily.
-    remaining = target_set - covered
-    while remaining:
-        # Prefer maximum uncovered coverage, then minimum complexity.
-        best_idx, best_imp = max(
-            enumerate(prime_implicants),
-            key=lambda t: (
-                len(t[1].covered & remaining),
-                -t[1].complexity(),  # Lower complexity is preferred.
-            ),
-        )
-
-        if not (best_imp.covered & remaining):
-            # Uncoverable minterms remain, for example after contradictory rows.
-            warnings.warn(
-                f"Unable to cover minterms: {sorted(remaining)}. "
-                "Check the truth table for contradictory rows.",
-                UserWarning,
-                stacklevel=3,
-            )
-            break
-
-        if best_idx not in selected_set:
-            selected.append(best_imp)
-            selected_set.add(best_idx)
-        covered |= best_imp.covered
-        remaining = target_set - covered
-
-    # Preserve the ordering of the original list.
-    order = {id(imp): i for i, imp in enumerate(prime_implicants)}
-    selected.sort(key=lambda imp: order.get(id(imp), 0))
-
-    return selected
+    Minimize term count, then total non-wildcard condition count, then
+    candidate-index order. Raise ValueError if any target cannot be covered.
+    """
+    return exact_set_cover(prime_implicants, target_minterms)
 
 
 # ---------------------------------------------------------------------------

@@ -682,3 +682,5 @@ MIT License
 ライセンス条件は [`CONTRIBUTING.md`](CONTRIBUTING.md) に記載しています。
 
 PRIは配置・結果・結果の否定の三集合の共通部分を使う標準式で計算します。`pri_cut` による行選択を修正しました。詳細は [PRIの仕様](docs/user_guide/core_qca.rst) を参照してください。
+
+既定の `standard` と `qmc` は厳密な被覆選択を行い、項数、総論理複雑度の順に最小化します。最適解を1つ返し、同等の最適解は全列挙しません。探索時間は指数的に増える可能性があり、近似法への自動切り替えはありません。近似を許容する場合は `greedy_set_cover` を明示してください。詳細は[最小化の仕様](docs/user_guide/minimization.rst)を参照してください。
