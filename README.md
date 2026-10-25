@@ -1143,3 +1143,5 @@ and release notes will be available through
 [GitHub Releases](https://github.com/t-yamsaki/PyQCA/releases).
 
 PRI uses the standard triple intersection of configuration, outcome, and negated outcome. This corrects row selection with `pri_cut`; see [PRI semantics](docs/user_guide/core_qca.rst).
+
+The default `standard` and `qmc` backends now use exact cover selection: fewest terms, then lowest total logical complexity. One optimal cover is returned; equally optimal alternatives are not enumerated. Exact search can take exponential time and never silently falls back to an approximation. Use `greedy_set_cover` explicitly for approximate selection. See [minimization semantics](docs/user_guide/minimization.rst).

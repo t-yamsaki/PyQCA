@@ -19,14 +19,14 @@ _BACKENDS: dict[str, MinimizerBackend] = {
     "standard": MinimizerBackend(
         name="standard",
         family="boolean",
-        description="Default standard Boolean minimization backend.",
-        exact=False,
+        description="Default Boolean minimization with exact cover selection.",
+        exact=True,
     ),
     "qmc": MinimizerBackend(
         name="qmc",
         family="quine_mccluskey",
-        description="Quine-McCluskey-style prime implicant minimizer.",
-        exact=False,
+        description="Quine-McCluskey prime generation with exact cover selection.",
+        exact=True,
     ),
     "set_cover": MinimizerBackend(
         name="set_cover",
