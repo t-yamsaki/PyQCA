@@ -89,3 +89,28 @@ An empty configuration or a numerically zero PRI denominator returns ``0.0``
 as a finite convention, rather than evidence of sufficient support. A positive
 ``pri_cut`` excludes such rows; the default ``pri_cut=0.0`` does not exclude
 rows on PRI alone. The ordinary consistency threshold still applies.
+
+Low-membership sufficiency
+--------------------------
+
+Sufficiency consistency and coverage use all calibrated memberships, even when
+no case has configuration membership above 0.5. For example, ``X=[0.2, 0.4]``
+and ``Y=[0.3, 0.5]`` have consistency 1.0 and raw coverage 0.75, with
+``n_cases_in=0``. Positive membership sums are not rounded to zero. See
+`Ragin (2006), Set Relations in Social Research
+<https://sites.socsci.uci.edu/~cragin/fsQCA/download/Con_cov.pdf>`_.
+
+A truly zero denominator returns a finite zero. Unique coverage is calculated
+when the other solution terms are supplied, including a zero result for an
+empty term; it remains ``None`` when not requested.
+
+``SufficiencyResult.membership_sum`` records the configuration membership sum.
+Its optional default is ``None`` for existing manually constructed results.
+The ``strength`` label is ``empty`` only when that sum is known to be zero;
+otherwise a result with no cases above 0.5 is labeled
+``no_cases_above_crossover``. Existing table column schemas are unchanged.
+
+The empirical-support rules remain separate: ``is_sufficient`` still requires
+at least one case above 0.5, and configuration search still applies its explicit
+``min_cases`` filter (default 1). Set ``min_cases=0`` to inspect configurations
+without such cases. This does not change truth-table row assignment.

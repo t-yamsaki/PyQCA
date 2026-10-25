@@ -999,22 +999,12 @@ class QCAEngineBase:
         x_sum = float(x_arr.sum())
         y_sum = float(y_arr.sum())
 
-        # No substantively relevant cases.
-        if n_cases_in == 0 or np.isclose(x_sum, 0.0, atol=ZERO_EPSILON):
-            return SufficiencyResult(
-                antecedent=label,
-                consistency=0.0,
-                raw_coverage=0.0,
-                unique_coverage=None,
-                n_cases_in=0,
-            )
-
         min_xy = np.minimum(x_arr, y_arr)
         min_xy_sum = float(min_xy.sum())
 
-        consistency = min_xy_sum / x_sum
+        consistency = min_xy_sum / x_sum if x_sum > 0.0 else 0.0
         raw_coverage = (
-            min_xy_sum / y_sum if not np.isclose(y_sum, 0.0, atol=ZERO_EPSILON) else 0.0
+            min_xy_sum / y_sum if y_sum > 0.0 else 0.0
         )
 
         # Calculate unique coverage.
@@ -1031,7 +1021,7 @@ class QCAEngineBase:
             )
             unique_coverage = (
                 unique_num / y_sum
-                if not np.isclose(y_sum, 0.0, atol=ZERO_EPSILON)
+                if y_sum > 0.0
                 else 0.0
             )
 
@@ -1041,6 +1031,7 @@ class QCAEngineBase:
             raw_coverage=raw_coverage,
             unique_coverage=unique_coverage,
             n_cases_in=n_cases_in,
+            membership_sum=x_sum,
         )
 
     # ------------------------------------------------------------------
@@ -1402,7 +1393,7 @@ class QCAEngineBase:
         y_arr = y_vals.to_numpy(dtype=float)
         x_sum = float(x_arr.sum())
 
-        if np.isclose(x_sum, 0.0, atol=ZERO_EPSILON):
+        if x_sum == 0.0:
             return 0.0, 0.0
 
         positive_overlap = float(np.minimum(x_arr, y_arr).sum())

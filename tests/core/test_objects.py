@@ -319,6 +319,7 @@ class TestSufficiencyResult:
             raw_coverage=0.0,
             unique_coverage=None,
             n_cases_in=0,
+            membership_sum=0.0,
         )
 
     def test_is_sufficient_true(self, strong_result):
