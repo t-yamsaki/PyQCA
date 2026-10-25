@@ -28,6 +28,7 @@ class SufficiencyResult:
     raw_coverage: float
     unique_coverage: float | None
     n_cases_in: int
+    membership_sum: float | None = None
 
     # ------------------------------------------------------------------
     # Evaluation properties
@@ -42,7 +43,9 @@ class SufficiencyResult:
     def strength(self) -> str:
         """Return a qualitative strength label."""
         if self.n_cases_in == 0:
-            return "empty"
+            if self.membership_sum == 0.0:
+                return "empty"
+            return "no_cases_above_crossover"
         if self.consistency >= CONSISTENCY_STRONG:
             return "strong"
         if self.consistency >= CONSISTENCY_MODERATE:
