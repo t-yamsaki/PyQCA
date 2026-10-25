@@ -134,7 +134,16 @@ def logistic_calibrate_series(
     arr = numeric.to_numpy(dtype=float)
     with np.errstate(over="ignore", invalid="ignore"):
         # Center before scaling to avoid cancellation at the crossover.
-        z = np.where(arr <= crossover, below, above) * (arr - crossover)
+        slopes = np.where(arr <= crossover, below, above)
+        centered = arr - crossover
+        z = slopes * centered
+        # Opposite-sign finite values can overflow during subtraction even
+        # when the scaled logit is representable. Only in that case scale
+        # first; retain centered arithmetic elsewhere to avoid cancellation.
+        overflowed = np.isfinite(arr) & ~np.isfinite(centered)
+        z[overflowed] = (
+            slopes[overflowed] * arr[overflowed] - slopes[overflowed] * crossover
+        )
         exp_negative_abs = np.exp(-np.abs(z))
         membership = np.where(
             z >= 0,

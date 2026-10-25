@@ -82,3 +82,27 @@ def test_continuity_monotonicity_and_nonfinite_inputs():
     assert np.isfinite(result.iloc[:7]).all()
     assert result.iloc[7:].isna().all()
     np.testing.assert_allclose(result.iloc[2:5], 0.5, atol=1e-8)
+
+
+@pytest.mark.parametrize("sign", [1.0, -1.0])
+def test_large_finite_centering_does_not_cause_false_saturation(sign):
+    anchors = sorted(sign * np.array([-1.5e308, -1e308, -5e307]))
+    raw = pd.Series([sign * 1e308, anchors[1], np.nan, np.inf, -np.inf])
+    result, _ = logistic_calibrate_series(raw, *anchors, 0.49, 0.51)
+    # Distance/gap is exactly 4 in real arithmetic. Compute reference odds
+    # without either the production slope or the overflowing subtraction.
+    odds = (0.51 / 0.49) ** (4 * sign)
+    assert result.iloc[0] == pytest.approx(odds / (1 + odds), abs=1e-14)
+    assert result.iloc[1] == 0.5
+    assert result.iloc[2:].isna().all()
+
+
+def test_overflowing_centering_with_true_tail_saturation():
+    crossover = -1e308
+    anchors = (
+        np.nextafter(crossover, -np.inf),
+        crossover,
+        np.nextafter(crossover, np.inf),
+    )
+    result, _ = logistic_calibrate_series(pd.Series([1e308]), *anchors)
+    assert result.iloc[0] == np.nextafter(1.0, 0.0)
