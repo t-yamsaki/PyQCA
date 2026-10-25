@@ -1213,17 +1213,31 @@ class QCAEngineBase:
         self._validate_optional_cutoff("pri_cut", pri_cut)
         work = self.data.copy()
 
+        # Exactly 0.5 is not above the crossover in either polarity.
+        # Exclude these cases only from empirical row assignment, retaining
+        # the original data for full-universe consistency and PRI scores.
+        ambiguous = work[self.set_conditions].eq(MEMBERSHIP_THRESHOLD).any(axis=1)
+        if ambiguous.any():
+            warnings.warn(
+                f"{int(ambiguous.sum())} case(s) with a set condition exactly "
+                "at 0.5 were excluded from truth-table row assignment and "
+                "frequencies; consistency and PRI still use all cases.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # Binarize set conditions into temporary grouping columns.
         crisp_col_map: dict[str, str] = {}
         for c in self.set_conditions:
             col = f"__crisp_{c}"
-            work[col] = (work[c] >= MEMBERSHIP_THRESHOLD).astype(int)
+            work[col] = (work[c] > MEMBERSHIP_THRESHOLD).astype(int)
             crisp_col_map[c] = col
 
         multivalue_col_map: dict[str, str] = {}
         for c in self.multivalue_conditions:
             multivalue_col_map[c] = self._truth_table_multivalue_group_column(work, c)
 
+        work = work.loc[~ambiguous]
         group_cols = [
             *crisp_col_map.values(),
             *multivalue_col_map.values(),

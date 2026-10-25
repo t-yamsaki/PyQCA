@@ -114,3 +114,25 @@ The empirical-support rules remain separate: ``is_sufficient`` still requires
 at least one case above 0.5, and configuration search still applies its explicit
 ``min_cases`` filter (default 1). Set ``min_cases=0`` to inspect configurations
 without such cases. This does not change truth-table row assignment.
+
+Exact crossover values in truth tables
+--------------------------------------
+
+A case with membership exactly 0.5 in any crisp/fuzzy set condition has no
+unambiguous truth-table corner. PyQCA warns and excludes the case from row
+assignment, ``n_cases``, row ``case_ids``, and the assigned-case outcome mean.
+It does not assign the case to the absent side or adjust its membership.
+This rule uses exact equality: representable values immediately below or above
+0.5 are still assigned normally. An outcome value of 0.5 alone does not
+exclude a case.
+
+The original data remain intact. Row consistency and PRI still use the full
+case universe, including crossover cases. Frequency cutoffs apply only to
+unambiguously assigned cases. A corner with no assigned cases has no observed
+row and is treated as a logical remainder during minimization; a dataset with
+only ambiguous cases produces an empty truth table and no positive solution.
+
+The rule applies to FSQCA and GSQCA set conditions. GSQCA multi-value
+membership-column argmax/tie handling is unchanged. See
+`Dușa, QCA with R, The truth table
+<https://bookdown.org/dusadrian/QCAbook/truthTable.html>`_.
