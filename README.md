@@ -1141,3 +1141,5 @@ Future work is tracked through
 [GitHub Issues](https://github.com/t-yamsaki/PyQCA/issues). Published versions
 and release notes will be available through
 [GitHub Releases](https://github.com/t-yamsaki/PyQCA/releases).
+
+PRI uses the standard triple intersection of configuration, outcome, and negated outcome. This corrects row selection with `pri_cut`; see [PRI semantics](docs/user_guide/core_qca.rst).

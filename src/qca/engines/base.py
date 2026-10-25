@@ -1406,14 +1406,18 @@ class QCAEngineBase:
             return 0.0, 0.0
 
         positive_overlap = float(np.minimum(x_arr, y_arr).sum())
-        negative_overlap = float(np.minimum(x_arr, 1.0 - y_arr).sum())
+        # Dușa, QCA with R, Eq. 6.4: intersection of X, Y, and ~Y.
+        simultaneous_overlap = float(
+            np.minimum(np.minimum(x_arr, y_arr), 1.0 - y_arr).sum()
+        )
         consistency = positive_overlap / x_sum
 
-        pri_denominator = x_sum - negative_overlap
+        pri_denominator = x_sum - simultaneous_overlap
         if np.isclose(pri_denominator, 0.0, atol=ZERO_EPSILON):
+            # No distinguishable support: retain the finite zero convention.
             pri = 0.0
         else:
-            pri = (positive_overlap - negative_overlap) / pri_denominator
+            pri = (positive_overlap - simultaneous_overlap) / pri_denominator
             pri = min(1.0, max(0.0, pri))
 
         return float(consistency), float(pri)
