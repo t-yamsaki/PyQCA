@@ -1147,3 +1147,5 @@ PRI uses the standard triple intersection of configuration, outcome, and negated
 The default `standard` and `qmc` backends now use exact cover selection: fewest terms, then lowest total logical complexity. One optimal cover is returned; equally optimal alternatives are not enumerated. Exact search can take exponential time and never silently falls back to an approximation. Use `greedy_set_cover` explicitly for approximate selection. See [minimization semantics](docs/user_guide/minimization.rst).
 
 Sufficiency metrics now retain positive fuzzy memberships even when every score is at most 0.5. Empirical case-count filters remain separate; see [low-membership sufficiency](docs/user_guide/core_qca.rst).
+
+Logistic calibration now honors asymmetric three-anchor specifications using separate log-odds slopes around the crossover. Custom targets must straddle 0.5; asymmetric curves expose segment coefficients instead of a single slope/intercept. See [calibration semantics](docs/user_guide/calibration.rst).
