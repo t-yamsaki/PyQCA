@@ -74,3 +74,18 @@ All core engines expose methods for:
 * configuration search with
   :meth:`qca.QCAEngineBase.search_sufficient_configurations`;
 * unified fitting and minimization with :meth:`qca.QCAEngineBase.fit`.
+
+PRI consistency
+---------------
+
+All engines use the standard proportional reduction in inconsistency (PRI)
+formula, with ``T = sum(min(X, Y, 1 - Y))`` and
+``PRI = (sum(min(X, Y)) - T) / (sum(X) - T)``. Here ``X`` is the
+configuration membership and sums include all cases, not only cases assigned
+to its truth-table row. See `Dușa, QCA with R, equation 6.4
+<https://www.bookdown.org/dusadrian/QCAbook/analysisofsufficiency.html>`_.
+
+An empty configuration or a numerically zero PRI denominator returns ``0.0``
+as a finite convention, rather than evidence of sufficient support. A positive
+``pri_cut`` excludes such rows; the default ``pri_cut=0.0`` does not exclude
+rows on PRI alone. The ordinary consistency threshold still applies.

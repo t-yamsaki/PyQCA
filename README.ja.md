@@ -680,3 +680,5 @@ MIT License
 
 研究利用時の引用情報は [`CITATION.cff`](CITATION.cff)、コントリビューションの
 ライセンス条件は [`CONTRIBUTING.md`](CONTRIBUTING.md) に記載しています。
+
+PRIは配置・結果・結果の否定の三集合の共通部分を使う標準式で計算します。`pri_cut` による行選択を修正しました。詳細は [PRIの仕様](docs/user_guide/core_qca.rst) を参照してください。
