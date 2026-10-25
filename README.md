@@ -1149,3 +1149,5 @@ The default `standard` and `qmc` backends now use exact cover selection: fewest 
 Sufficiency metrics now retain positive fuzzy memberships even when every score is at most 0.5. Empirical case-count filters remain separate; see [low-membership sufficiency](docs/user_guide/core_qca.rst).
 
 Logistic calibration now honors asymmetric three-anchor specifications using separate log-odds slopes around the crossover. Custom targets must straddle 0.5; asymmetric curves expose segment coefficients instead of a single slope/intercept. See [calibration semantics](docs/user_guide/calibration.rst).
+
+Cases with a set-condition membership exactly 0.5 are now excluded from truth-table row assignment and frequency counts, with a warning. All original cases still contribute to consistency and PRI. See [crossover semantics](docs/user_guide/core_qca.rst).
