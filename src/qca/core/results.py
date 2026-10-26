@@ -104,6 +104,7 @@ class NecessityResult:
     consistency: float
     coverage: float
     n_cases_in: int
+    is_universal: bool | None = None
 
     # ------------------------------------------------------------------
     # Evaluation properties
@@ -115,9 +116,16 @@ class NecessityResult:
         return self.consistency >= CONSISTENCY_NECESSITY
 
     @property
-    def is_trivial(self) -> bool:
-        """Is trivial."""
-        return self.coverage >= 0.90
+    def is_trivial(self) -> bool | None:
+        """Flag exact universal necessary conditions, not low relevance.
+
+        None means membership evidence is unavailable on a manually created
+        necessary result. Near-universality and statistical independence are
+        outside this conservative diagnostic; coverage is not a threshold.
+        """
+        if not self.is_necessary:
+            return False
+        return self.is_universal
 
     @property
     def strength(self) -> str:
@@ -155,9 +163,12 @@ class NecessityResult:
     # ------------------------------------------------------------------
 
     def __str__(self) -> str:
-        trivial_note = (
-            "  Potentially trivial necessary condition\n" if self.is_trivial else ""
-        )
+        if self.is_trivial is None:
+            trivial_note = "  Triviality unknown (membership evidence unavailable)\n"
+        elif self.is_trivial:
+            trivial_note = "  Trivial necessary condition (universal condition)\n"
+        else:
+            trivial_note = ""
         return (
             f"NecessityResult(\n"
             f"  condition   = {self.condition}\n"

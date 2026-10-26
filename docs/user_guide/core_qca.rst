@@ -136,3 +136,32 @@ The rule applies to FSQCA and GSQCA set conditions. GSQCA multi-value
 membership-column argmax/tie handling is unchanged. See
 `Dușa, QCA with R, The truth table
 <https://bookdown.org/dusadrian/QCAbook/truthTable.html>`_.
+
+Necessary-condition triviality
+------------------------------
+
+``NecessityResult.is_trivial`` is a conservative diagnostic of exact
+universality: it is true only when ``is_necessary`` is true (consistency at
+least 0.90) and the condition membership equals 1 in every observed case.
+No tolerance is used. A condition merely above 0.5 in every case, or close to
+1, is not flagged. This is not a statistical independence test or a general
+test for near-triviality. Low necessity coverage measures low relevance and
+is not sufficient to establish universality; high coverage does not imply
+triviality. See `Dușa, QCA with R, section 5.3
+<https://bookdown.org/dusadrian/QCAbook/analysisofnecessity.html>`_.
+
+For example, ``X=[1,1,1]``, ``Y=[1,0,0]`` is flagged, while
+``X=Y=[0,1]`` is not. If both X and Y are universally 1, the condition is
+still universal and is flagged despite coverage 1. A zero-outcome set has
+consistency 0 under the existing denominator convention, so it is not flagged;
+an empty condition is likewise not a trivial necessary condition.
+
+Engine evaluation supplies the optional ``is_universal`` membership evidence.
+The existing four positional constructor arguments remain valid. For manually
+constructed necessary results without that evidence, ``is_trivial`` now
+returns ``None`` (unknown), rather than inferring a label from coverage.
+Non-necessary results return ``False``. Dictionary and table column names are
+unchanged, but consumers must allow a nullable ``is_trivial`` value for manual
+results; string output explicitly reports unknown evidence. Engine-generated
+results return booleans. Neither consistency nor coverage calculations are
+changed by this diagnostic.

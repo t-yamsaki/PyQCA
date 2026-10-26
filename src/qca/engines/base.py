@@ -1084,6 +1084,7 @@ class QCAEngineBase:
             consistency=consistency,
             coverage=coverage,
             n_cases_in=int((x_arr > MEMBERSHIP_THRESHOLD).sum()),
+            is_universal=bool(x_arr.size > 0 and np.all(x_arr == 1.0)),
         )
 
     # ------------------------------------------------------------------
