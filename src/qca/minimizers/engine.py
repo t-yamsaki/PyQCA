@@ -427,6 +427,7 @@ def minimize_truth_table(
     truth_table_rows = qca.build_truth_table(
         outcome_threshold=resolved_consistency_threshold,
         pri_cut=pri_cut,
+        frequency_cutoff=frequency_cutoff,
     )
 
     return minimizer.minimize(

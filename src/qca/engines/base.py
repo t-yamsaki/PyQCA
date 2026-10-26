@@ -379,6 +379,7 @@ class QCAEngineBase:
         truth_table_rows = self.build_truth_table(
             outcome_threshold=resolved_consistency_threshold,
             pri_cut=pri_cut,
+            frequency_cutoff=frequency_cutoff,
         )
         settings = {
             "minimizer": backend,
@@ -1227,8 +1228,13 @@ class QCAEngineBase:
         self,
         outcome_threshold: float = 0.5,
         pri_cut: float = 0.0,
+        frequency_cutoff: int = 1,
     ) -> list[TruthTableRow]:
-        """Build a QCA truth table."""
+        """Build observed rows with frequency, consistency, and PRI inclusion.
+
+        Low-frequency rows remain visible with include=False. Minimization
+        treats them as remainders, not observed negative configurations.
+        """
         self._validate_optional_cutoff("outcome_threshold", outcome_threshold)
         self._validate_optional_cutoff("pri_cut", pri_cut)
         work = self.data.copy()
@@ -1292,7 +1298,8 @@ class QCAEngineBase:
                     outcome_raw_consist=row_consist,
                     case_ids=case_ids,
                     include=(
-                        row_consist >= outcome_threshold
+                        len(group_data) >= frequency_cutoff
+                        and row_consist >= outcome_threshold
                         and pri_consist >= float(pri_cut)
                     ),
                     pri_consistency=pri_consist,
