@@ -684,6 +684,8 @@ class QCAEngineBase:
     def _coerce_multivalue_membership_columns(self) -> None:
         """Validate calibrated multivalent fuzzy membership columns."""
         for condition in self.multivalue_conditions:
+            if not self._uses_multivalue_membership_columns(condition):
+                continue
             for value, column in self._multivalue_membership_column_map(
                 condition
             ).items():
@@ -926,6 +928,23 @@ class QCAEngineBase:
     # Membership calculation
     # ------------------------------------------------------------------
 
+    def _literal_membership(
+        self, literal: SetLiteral | MultiValueLiteral
+    ) -> pd.Series:
+        """Resolve multi-value membership using the truth-table schema policy."""
+        data = self.data
+        if (
+            isinstance(literal, MultiValueLiteral)
+            and literal.name in self.multivalue_conditions
+        ):
+            if self._uses_multivalue_membership_columns(literal.name):
+                # Never fall back to categories for a missing calibrated value.
+                data = data.drop(columns=[literal.name], errors="ignore")
+            else:
+                # Auxiliary columns must not shadow a categorical condition.
+                data = data[[literal.name]]
+        return literal.membership(data)
+
     def conjunction_membership(
         self,
         literals: Sequence[SetLiteral | MultiValueLiteral],
@@ -943,7 +962,7 @@ class QCAEngineBase:
                 "condition (TYPE=1 and TYPE=2)."
             )
 
-        memberships = [lit.membership(self.data) for lit in literals]
+        memberships = [self._literal_membership(lit) for lit in literals]
         return pd.concat(memberships, axis=1).min(axis=1)
 
     def disjunction_membership(
@@ -1043,7 +1062,7 @@ class QCAEngineBase:
         literal: SetLiteral | MultiValueLiteral,
     ) -> NecessityResult:
         """Evaluate necessity for one literal."""
-        x = literal.membership(self.data).astype(float)
+        x = self._literal_membership(literal).astype(float)
         y = self.outcome_series
 
         x_arr = x.to_numpy(dtype=float)
@@ -1317,7 +1336,7 @@ class QCAEngineBase:
 
         memberships = pd.concat(
             [
-                MultiValueLiteral(condition, value).membership(self.data)
+                self._literal_membership(MultiValueLiteral(condition, value))
                 for value in domain
             ],
             axis=1,
@@ -1446,7 +1465,7 @@ class QCAEngineBase:
 
     def _n_cases_in(self, lit: SetLiteral | MultiValueLiteral) -> int:
         """Return the number of cases with membership above the threshold."""
-        membership = lit.membership(self.data).to_numpy(dtype=float)
+        membership = self._literal_membership(lit).to_numpy(dtype=float)
         return int((membership > MEMBERSHIP_THRESHOLD).sum())
 
     @staticmethod

@@ -1151,3 +1151,5 @@ Sufficiency metrics now retain positive fuzzy memberships even when every score 
 Logistic calibration now honors asymmetric three-anchor specifications using separate log-odds slopes around the crossover. Custom targets must straddle 0.5; asymmetric curves expose segment coefficients instead of a single slope/intercept. See [calibration semantics](docs/user_guide/calibration.rst).
 
 Cases with a set-condition membership exactly 0.5 are now excluded from truth-table row assignment and frequency counts, with a warning. All original cases still contribute to consistency and PRI. See [crossover semantics](docs/user_guide/core_qca.rst).
+
+Multi-value engines resolve memberships using the same condition schema as truth-table assignment. A categorical condition uses its category column even when auxiliary columns named `A=0`, `A[0]`, or `A__0` exist. GSQCA uses value memberships when `value_columns` is declared, `calibrated=True` is specified with value columns, or only value columns are present. The standalone `MultiValueLiteral.membership(data)` API has no engine schema and retains its value-column-first behavior.
