@@ -122,6 +122,7 @@ class QCAMinimizer:
 
         solution = QMSolution(
             backend=self.backend_name,
+            is_multivalue=list(self.is_multivalue_flags),
             condition_names=self.condition_names,
             n_positive=len(positive_indices),
             n_remainder=len(remainder_indices),
@@ -167,6 +168,7 @@ class QCAMinimizer:
             solution.prime_implicants_parsimonious,
             positive_indices,
             self.condition_names,
+            self.is_multivalue_flags,
         )
 
         return solution
