@@ -226,12 +226,13 @@ def build_coverage_table(
     prime_implicants: list[Implicant],
     target_minterms: list[int],
     condition_names: list[str],
+    is_multivalue: list[bool] | None = None,
 ) -> pd.DataFrame:
     """Build the implicant-by-minterm coverage table."""
     if not prime_implicants or not target_minterms:
         return pd.DataFrame()
 
-    labels = [imp.label(condition_names) for imp in prime_implicants]
+    labels = [imp.label(condition_names, is_multivalue) for imp in prime_implicants]
     columns = [f"m{i}" for i in target_minterms]
 
     data = np.zeros((len(prime_implicants), len(target_minterms)), dtype=int)

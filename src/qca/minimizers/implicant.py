@@ -57,23 +57,36 @@ class Implicant:
     # Label generation
     # ------------------------------------------------------------------
 
-    def label(self, condition_names: list[str]) -> str:
-        """Return a human-readable label."""
+    def label(
+        self,
+        condition_names: list[str],
+        is_multivalue: list[bool] | None = None,
+    ) -> str:
+        """Render categories explicitly when condition types are supplied.
+
+        Without type metadata, integer 0/1 retain legacy set notation;
+        other scalar values are always rendered as explicit categories.
+        """
         if len(condition_names) != len(self.pattern):
             raise ValueError(
                 f"condition_names length ({len(condition_names)}) does not match "
                 f"pattern length ({len(self.pattern)})."
             )
 
+        if is_multivalue is not None and len(is_multivalue) != len(self.pattern):
+            raise ValueError("is_multivalue length must match pattern length.")
+        flags = is_multivalue if is_multivalue is not None else [False] * len(
+            self.pattern
+        )
         parts: list[str] = []
-        for name, val in zip(condition_names, self.pattern, strict=False):
+        for name, val, multi in zip(condition_names, self.pattern, flags, strict=True):
             if val == DONT_CARE:
                 continue
             if _is_value_collection(val):
                 values = _sorted_values(val)
                 parts.append(f"{name}={{{','.join(str(v) for v in values)}}}")
                 continue
-            if isinstance(val, int):
+            if not multi and isinstance(val, int) and val in (0, 1):
                 parts.append(f"~{name}" if val == 0 else name)
             else:
                 parts.append(f"{name}={val}")
@@ -131,6 +144,7 @@ class QMSolution:
     n_positive: int = 0
     n_remainder: int = 0
     n_contradiction: int = 0
+    is_multivalue: list[bool] | None = None
 
     # ------------------------------------------------------------------
     # Aggregation and output
@@ -148,7 +162,7 @@ class QMSolution:
                 rows.append(
                     {
                         "solution_type": sol_type,
-                        "term": imp.label(self.condition_names),
+                        "term": imp.label(self.condition_names, self.is_multivalue),
                         "complexity": imp.complexity(),
                         "n_minterms_covered": len(imp.covered),
                     }

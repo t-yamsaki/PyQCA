@@ -1153,3 +1153,5 @@ Logistic calibration now honors asymmetric three-anchor specifications using sep
 Cases with a set-condition membership exactly 0.5 are now excluded from truth-table row assignment and frequency counts, with a warning. All original cases still contribute to consistency and PRI. See [crossover semantics](docs/user_guide/core_qca.rst).
 
 Multi-value engines resolve memberships using the same condition schema as truth-table assignment. A categorical condition uses its category column even when auxiliary columns named `A=0`, `A[0]`, or `A__0` exist. GSQCA uses value memberships when `value_columns` is declared, `calibrated=True` is specified with value columns, or only value columns are present. The standalone `MultiValueLiteral.membership(data)` API has no engine schema and retains its value-column-first behavior.
+
+Solution formulas and coverage-table labels preserve multi-value categories explicitly, including `A=0`, `A=1`, and `A=2`. Crisp/fuzzy set conditions retain `A` and `~A` notation. Low-level `Implicant.label` and `build_coverage_table` accept optional `is_multivalue` flags; callers without schema metadata retain legacy integer 0/1 set notation.
