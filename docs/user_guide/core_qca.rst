@@ -165,3 +165,25 @@ unchanged, but consumers must allow a nullable ``is_trivial`` value for manual
 results; string output explicitly reports unknown evidence. Engine-generated
 results return booleans. Neither consistency nor coverage calculations are
 changed by this diagnostic.
+
+Frequency and truth-table inclusion
+----------------------------------------
+
+``build_truth_table(frequency_cutoff=1)`` and the truth table returned by
+``fit(frequency_cutoff=...)`` mark a row ``include=True`` only if its observed
+case count meets the frequency cutoff and its consistency and PRI meet their
+respective cutoffs. Equality at each cutoff is accepted. Low-frequency rows
+remain visible with their original counts, case IDs and scores, but have
+``include=False``. Table exports and Markdown reports use these same flags.
+
+``include=False`` means the row is not a positive input to minimization; it
+does not by itself mean an observed negative configuration. Low-frequency
+rows are still logical remainders, while sufficiently frequent rows failing
+consistency or PRI remain negative. Parsimonious minimization may therefore
+use low-frequency configurations as simplifying assumptions. Counts and
+metrics are not recomputed from a filtered dataset.
+
+The standalone truth-table consistency default remains 0.5, while ``fit``
+uses its resolved consistency cutoff (default 0.75). To compare them directly,
+pass the same consistency, PRI and frequency cutoffs to both APIs. The default
+frequency cutoff of 1 preserves previous standalone behavior.

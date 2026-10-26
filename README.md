@@ -1157,3 +1157,5 @@ Multi-value engines resolve memberships using the same condition schema as truth
 Solution formulas and coverage-table labels preserve multi-value categories explicitly, including `A=0`, `A=1`, and `A=2`. Crisp/fuzzy set conditions retain `A` and `~A` notation. Low-level `Implicant.label` and `build_coverage_table` accept optional `is_multivalue` flags; callers without schema metadata retain legacy integer 0/1 set notation.
 
 Necessary-condition triviality now flags exact universal necessary conditions (all condition memberships equal 1), rather than high coverage. Low coverage alone does not establish triviality. Manually constructed necessary results without the optional `is_universal` evidence return `is_trivial=None`. See [triviality semantics and compatibility](docs/user_guide/core_qca.rst).
+
+Truth-table `include` now reflects `frequency_cutoff` together with consistency and PRI, both in `fit` results and standalone `build_truth_table`. Low-frequency rows remain visible and are still treated as logical remainders during minimization. See [frequency and inclusion](docs/user_guide/core_qca.rst).
