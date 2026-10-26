@@ -187,3 +187,22 @@ The standalone truth-table consistency default remains 0.5, while ``fit``
 uses its resolved consistency cutoff (default 0.75). To compare them directly,
 pass the same consistency, PRI and frequency cutoffs to both APIs. The default
 frequency cutoff of 1 preserves previous standalone behavior.
+
+Low-membership necessity
+------------------------
+
+Necessity consistency is ``sum(min(X, Y)) / sum(Y)`` and necessity coverage
+is ``sum(min(X, Y)) / sum(X)``. Positive denominators are not rounded to zero
+using an absolute tolerance. For example, ``X=[2e-13, 4e-13]`` and
+``Y=[3e-13, 5e-13]`` yield consistency 0.75 and coverage 1.0, while
+``n_cases_in`` remains 0. Rescaling both sets preserves the ratios, subject
+to floating-point representability.
+
+Each truly zero denominator independently returns 0.0 under the existing
+finite convention, not evidence of necessity. The same calculation is used
+by single-literal evaluation, necessary-condition search and its result tables.
+Case counts and empirical support are separate from these set-theoretic
+ratios. This change does not modify PRI denominator handling or the
+universality-based triviality diagnostic. See the necessity definitions in
+`Dușa, QCA with R, chapter 5
+<https://bookdown.org/dusadrian/QCAbook/analysisofnecessity.html>`_.

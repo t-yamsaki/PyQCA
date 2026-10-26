@@ -1159,3 +1159,5 @@ Solution formulas and coverage-table labels preserve multi-value categories expl
 Necessary-condition triviality now flags exact universal necessary conditions (all condition memberships equal 1), rather than high coverage. Low coverage alone does not establish triviality. Manually constructed necessary results without the optional `is_universal` evidence return `is_trivial=None`. See [triviality semantics and compatibility](docs/user_guide/core_qca.rst).
 
 Truth-table `include` now reflects `frequency_cutoff` together with consistency and PRI, both in `fit` results and standalone `build_truth_table`. Low-frequency rows remain visible and are still treated as logical remainders during minimization. See [frequency and inclusion](docs/user_guide/core_qca.rst).
+
+Necessity consistency and coverage now retain positive membership sums even below `1e-12`; only truly zero denominators return zero. Case counts are unchanged. See [low-membership necessity](docs/user_guide/core_qca.rst).

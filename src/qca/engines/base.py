@@ -1073,12 +1073,10 @@ class QCAEngineBase:
         x_sum = float(x_arr.sum())
         min_xy_sum = float(np.minimum(x_arr, y_arr).sum())
 
-        consistency = (
-            min_xy_sum / y_sum if not np.isclose(y_sum, 0.0, atol=ZERO_EPSILON) else 0.0
-        )
-        coverage = (
-            min_xy_sum / x_sum if not np.isclose(x_sum, 0.0, atol=ZERO_EPSILON) else 0.0
-        )
+        # Positive membership sums remain meaningful even below an absolute
+        # tolerance. Only a truly empty denominator uses the zero convention.
+        consistency = min_xy_sum / y_sum if y_sum > 0.0 else 0.0
+        coverage = min_xy_sum / x_sum if x_sum > 0.0 else 0.0
 
         return NecessityResult(
             condition=literal.label(),
