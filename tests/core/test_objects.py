@@ -382,15 +382,17 @@ class TestNecessityResult:
             consistency=0.92,
             coverage=0.65,
             n_cases_in=7,
+            is_universal=False,
         )
 
     @pytest.fixture
     def trivial_result(self):
         return NecessityResult(
             condition="~nonexistent",
-            consistency=0.95,
-            coverage=0.95,
+            consistency=1.0,
+            coverage=0.1,
             n_cases_in=10,
+            is_universal=True,
         )
 
     def test_is_necessary_true(self, necessary_result):
@@ -431,10 +433,10 @@ class TestNecessityResult:
         assert "is_trivial" in d
 
     def test_str_trivial_note(self, trivial_result):
-        assert "Potentially trivial" in str(trivial_result)
+        assert "Trivial necessary condition" in str(trivial_result)
 
     def test_str_no_trivial_note(self, necessary_result):
-        assert "Potentially trivial" not in str(necessary_result)
+        assert "Trivial necessary condition" not in str(necessary_result)
 
 
 # ===========================================================================
