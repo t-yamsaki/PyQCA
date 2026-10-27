@@ -18,6 +18,7 @@ from qca._constants import (
     MEMBERSHIP_THRESHOLD,
     ZERO_EPSILON,
 )
+from qca._validation import validate_category_value
 from qca.core.conditions import (
     ConditionSpec,
     condition_specs_from_schema,
@@ -775,6 +776,9 @@ class QCAEngineBase:
         """Validate declared multi-value domains against observed data."""
         spec_map = self.condition_spec_map
         for condition in self.multivalue_conditions:
+            if condition in self.data.columns:
+                for value in self.data[condition].dropna().unique():
+                    validate_category_value(value)
             spec = spec_map.get(condition)
             if spec is None or spec.domain is None:
                 continue

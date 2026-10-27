@@ -15,6 +15,7 @@ from qca._types import (
     MintermList,
     TruthTableRowProtocol,
 )
+from qca._validation import validate_category_value
 
 # ---------------------------------------------------------------------------
 # Full logical-space generation
@@ -30,6 +31,9 @@ def generate_all_minterms(
         return [()]
 
     domains = [condition_domains[c] for c in condition_names]
+    for domain in domains:
+        for value in domain:
+            validate_category_value(value)
     return list(product(*domains))
 
 

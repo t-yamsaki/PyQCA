@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from qca._constants import DONT_CARE
+from qca._validation import validate_category_value
 from qca.minimizers._cover import exact_set_cover
 from qca.minimizers.implicant import Implicant
 
@@ -109,6 +110,9 @@ def quine_mccluskey(
     dont_care_indices: list[int] | None = None,
 ) -> list[Implicant]:
     """Quine mccluskey."""
+    for pattern in all_patterns:
+        for value in pattern:
+            validate_category_value(value)
     if not minterms:
         return []
 

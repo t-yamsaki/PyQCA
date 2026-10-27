@@ -14,6 +14,7 @@ from qca._constants import (
     MEMBERSHIP_THRESHOLD,
     NO_MEMBERSHIP,
 )
+from qca._validation import validate_category_value
 
 # ---------------------------------------------------------------------------
 # SetLiteral
@@ -99,6 +100,9 @@ class MultiValueLiteral:
 
     name: str
     value: Any
+
+    def __post_init__(self) -> None:
+        validate_category_value(self.value)
 
     # ------------------------------------------------------------------
     # Display
