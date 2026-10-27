@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Mapping
 from itertools import product
 from typing import Any
 
@@ -163,6 +164,35 @@ def classify_truth_table_rows(
 # ---------------------------------------------------------------------------
 # Directional filtering of logical remainders
 # ---------------------------------------------------------------------------
+
+
+def validate_directional_expectations(
+    directional_expectations: DirectionalExpectations | None,
+    condition_names: list[str],
+    condition_domains: ConditionDomains,
+) -> None:
+    """Validate explicit theory against the model's complete condition domains."""
+    if directional_expectations is None:
+        return
+    if not isinstance(directional_expectations, Mapping):
+        raise TypeError("directional_expectations must be a mapping or None.")
+    for name, expected in directional_expectations.items():
+        if name not in condition_names:
+            raise ValueError(
+                f"directional_expectations contains unknown condition {name!r}. "
+                f"Available conditions: {condition_names!r}."
+            )
+        domain = condition_domains[name]
+        try:
+            valid = expected in domain
+        except (TypeError, ValueError):
+            valid = False
+        if not valid:
+            raise ValueError(
+                f"directional_expectations[{name!r}] has value {expected!r} "
+                f"outside its condition domain {domain!r}. "
+                "Omit the condition to leave it unconstrained."
+            )
 
 
 def is_theory_consistent(

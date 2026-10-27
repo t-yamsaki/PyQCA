@@ -32,6 +32,7 @@ from qca.minimizers.remainder import (
     filter_theory_consistent_remainders,
     generate_all_minterms,
     is_theory_consistent,
+    validate_directional_expectations,
 )
 
 if TYPE_CHECKING:
@@ -97,6 +98,9 @@ class QCAMinimizer:
         include_remainders_in_parsimonious: bool = True,
     ) -> QMSolution:
         """Derive complex, parsimonious, and intermediate solutions."""
+        validate_directional_expectations(
+            directional_expectations, self.condition_names, self.condition_domains
+        )
         resolved_consistency_threshold = (
             outcome_threshold
             if consistency_threshold is None
@@ -325,6 +329,9 @@ class QCAMinimizer:
         directional_expectations: DirectionalExpectations | None = None,
     ) -> pd.DataFrame:
         """Return diagnostic remainder classification results."""
+        validate_directional_expectations(
+            directional_expectations, self.condition_names, self.condition_domains
+        )
         _, _, remainder_indices, _ = classify_truth_table_rows(
             truth_table_rows=truth_table_rows,
             all_patterns=self._all_patterns,
