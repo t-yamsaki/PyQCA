@@ -141,6 +141,8 @@ print(result.solutions)
 
 ### 4. GSQCA
 
+Truth-table grouping uses temporary column names that do not collide with input columns. Condition names beginning with `__crisp_` or `__gsqca_corner_` are supported without changing case assignments or minimization results.
+
 Explicit `value_columns` aliases are resolved from the original input before any canonical columns are written. Swapped aliases, shared source columns, and sources used by other explicitly mapped conditions are allowed and independent of mapping/condition order. A target that collides with the outcome, case ID, a condition name, or another value-membership target (including an implicitly resolved value) raises `ValueError`. Explicit aliases still take precedence over competing conventional columns for the same value. All source columns must exist in the original input; the caller's DataFrame is not modified.
 
 `GSQCA` is the high-level interface for generalized-set QCA workflows

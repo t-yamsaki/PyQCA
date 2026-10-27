@@ -1295,7 +1295,7 @@ class QCAEngineBase:
         # Binarize set conditions into temporary grouping columns.
         crisp_col_map: dict[str, str] = {}
         for c in self.set_conditions:
-            col = f"__crisp_{c}"
+            col = self._unused_column_name(work, f"__crisp_{c}")
             work[col] = (work[c] > MEMBERSHIP_THRESHOLD).astype(int)
             crisp_col_map[c] = col
 
@@ -1349,6 +1349,16 @@ class QCAEngineBase:
         rows.sort(key=lambda r: (-r.outcome_mean, -r.n_cases))
         return rows
 
+    @staticmethod
+    def _unused_column_name(work: pd.DataFrame, base: str) -> str:
+        """Choose a temporary name without overwriting any existing column."""
+        candidate = base
+        suffix = 1
+        while candidate in work.columns:
+            candidate = f"{base}_{suffix}"
+            suffix += 1
+        return candidate
+
     def _truth_table_multivalue_group_column(
         self,
         work: pd.DataFrame,
@@ -1358,7 +1368,7 @@ class QCAEngineBase:
         if not self._uses_multivalue_membership_columns(condition):
             return condition
 
-        group_column = f"__gsqca_corner_{condition}"
+        group_column = self._unused_column_name(work, f"__gsqca_corner_{condition}")
         work[group_column] = self._assign_multivalue_corner(condition)
         return group_column
 
