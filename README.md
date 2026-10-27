@@ -266,6 +266,8 @@ print(bench.summary())
 
 ### 6. ThresholdSweep
 
+Threshold binarization (`qca_bin`) returns floating-point memberships: finite values at or above the threshold become 1, and lower values become 0. NaN and positive/negative infinity remain missing (NaN), including after outcome negation and in `pre_calibrated` conditions. Thresholds must be finite. Preparation preserves these missing values; every threshold-sweep path rejects a run containing them, reporting affected columns and row counts in the summary's `error` field. Resolve or explicitly exclude those rows before analysis; the sweep does not silently impute or drop them.
+
 PyQCA includes a threshold-sweep analysis layer inspired by the ThS-QCA framework.
 
 Instead of treating thresholds as fixed preprocessing choices, `ThresholdSweep` treats them as explicit analytical variables.

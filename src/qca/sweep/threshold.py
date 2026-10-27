@@ -19,6 +19,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from qca.calibration.crisp import crisp_calibrate_series
 from qca.core.conditions import ConditionSpec
 from qca.engines import GSQCA, QCAEngineBase
 from qca.results import QCAFitResult
@@ -27,9 +28,9 @@ OUTCOME_COLUMN = "__tsqca_Y__"
 
 
 def qca_bin(x: pd.Series | Sequence[float], threshold: float) -> pd.Series:
-    """Binarize values using the ThSQCA rule ``x >= threshold``."""
+    """Binarize finite values with ``x >= threshold``; preserve nonfinite as NaN."""
     values = pd.to_numeric(pd.Series(x), errors="raise")
-    return (values >= threshold).astype(int)
+    return crisp_calibrate_series(values, threshold).rename(values.name)
 
 
 def validate_pre_calibrated(
@@ -48,13 +49,16 @@ def validate_pre_calibrated(
         )
 
     for name in pre_calibrated:
-        values = pd.to_numeric(data[name], errors="raise")
-        if values.isna().any():
+        values = pd.to_numeric(data[name], errors="raise").astype(float)
+        nonfinite = ~np.isfinite(values)
+        if nonfinite.any():
             warnings.warn(
-                f"pre_calibrated variable {name!r} contains NA values.",
+                f"pre_calibrated variable {name!r} contains "
+                f"{int(nonfinite.sum())} missing or non-finite values.",
                 UserWarning,
                 stacklevel=2,
             )
+        values = values.where(~nonfinite)
         minimum = float(values.min(skipna=True))
         maximum = float(values.max(skipna=True))
         if minimum < 0.0 or maximum > 1.0:
@@ -92,6 +96,7 @@ def prepare_threshold_data(
     for condition in conditions:
         if condition in pre_calibrated_set:
             values = pd.to_numeric(data[condition], errors="raise").astype(float)
+            values = values.where(np.isfinite(values))
             out[condition] = values
             kind = _infer_calibrated_condition_kind(values)
             specs.append(
@@ -694,6 +699,19 @@ class ThresholdSweep:
                 pre_calibrated=pre_calibrated,
                 negate_outcome=negate_outcome,
             )
+            invalid = {
+                (outcome_clean if column == OUTCOME_COLUMN else column): int(
+                    data_bin[column].isna().sum()
+                )
+                for column in [OUTCOME_COLUMN, *self.conditions]
+                if data_bin[column].isna().any()
+            }
+            if invalid:
+                raise ValueError(
+                    "Missing or non-finite values prevent threshold analysis "
+                    f"(column: row count): {invalid}. "
+                    "Handle these rows explicitly before running the sweep."
+                )
             model = GSQCA(
                 data=data_bin,
                 case_id=self.case_id if self.case_id in data_bin.columns else None,
