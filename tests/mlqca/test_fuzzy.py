@@ -284,3 +284,41 @@ def test_anchor_adapter_accepts_calibrated_direction_name(
     assert fit.settings["directional_expectations"] == {
         calibration.condition_map[feature]: 1
     }
+
+
+@pytest.mark.parametrize("feature", ["resources", "burden"])
+def test_anchor_adapter_recalibrates_existing_output_without_mutating_source(
+    fuzzy_df, fuzzy_predictor, feature
+):
+    validated = _validated(fuzzy_df)
+    calibration = calibrate_fuzzy_conditions(
+        validated, propose_fuzzy_anchors(validated, fuzzy_predictor)
+    )
+    before = calibration.data.copy(deep=True)
+    output = calibration.condition_map[feature]
+    # A stale output must be overwritten in the run, not rejected as a collision.
+    calibration.data[output] = 0.123
+    stale = calibration.data.copy(deep=True)
+    result = run_anchor_sensitivity(
+        validated,
+        calibration,
+        feature,
+        anchor_grid={"full_out": [3], "crossover": [6], "full_in": [10]},
+        dir_exp={},
+        incl_cut=0.5,
+        outcome_threshold=0.5,
+    )
+    assert result.result.results[0] is not None
+    frame = result.result.details[0]["calibrated_data"]
+    assert not frame[output].eq(0.123).all()
+    pd.testing.assert_series_equal(
+        frame[calibration.outcome], before[calibration.outcome]
+    )
+    for other in calibration.conditions:
+        if other != output:
+            pd.testing.assert_series_equal(frame[other], before[other])
+    if calibration.case_id is not None:
+        pd.testing.assert_series_equal(
+            frame[calibration.case_id], before[calibration.case_id]
+        )
+    pd.testing.assert_frame_equal(calibration.data, stale)

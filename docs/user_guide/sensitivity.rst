@@ -56,5 +56,13 @@ membership, or a multi-anchor grid.
        incl_cut=0.8,
    )
 
+The calibrated output defaults to ``<condition>_fuzzy``; use ``out_col`` to
+choose another name. An output name that matches the outcome, case ID, or
+another model condition raises ``ValueError`` before any sweep runs. This also
+applies to automatically generated names and all three single-anchor methods.
+The swept condition itself may be replaced by setting ``out_col=condition``.
+Existing auxiliary output columns may also be recalibrated, as in the mlQCA
+adapter. Calibration takes place on copies; the input data remain unchanged.
+
 Matplotlib is optional. Install ``pyqca[viz]`` before calling heatmap or
 trajectory plotting methods.

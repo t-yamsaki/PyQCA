@@ -280,8 +280,9 @@ class AnchorSensitivity:
     ) -> AnchorSensitivityResult:
         """Run a full three-anchor grid analysis for one raw condition."""
         self._validate_variable_names(condition)
-        anchor_combos = _anchor_product(anchor_grid)
         calibrated_col = out_col or f"{condition}_fuzzy"
+        self._validate_output_column(condition, calibrated_col)
+        anchor_combos = _anchor_product(anchor_grid)
         model_conditions = [
             calibrated_col if name == condition else name for name in self.conditions
         ]
@@ -482,6 +483,23 @@ class AnchorSensitivity:
                 )
             return dict(zip(model_conditions, values, strict=False))
         return {condition: dir_exp for condition in model_conditions}
+
+    def _validate_output_column(self, condition: str, output: str) -> None:
+        """Protect analytical columns while allowing target recalibration."""
+        if output == self.outcome_name:
+            role = "the outcome column"
+        elif self.case_id is not None and output == self.case_id:
+            role = "the case ID column"
+        elif output in self.conditions and output != condition:
+            role = "a non-swept condition column"
+        else:
+            # The swept condition itself and existing auxiliary output columns
+            # may be recalibrated, including mlQCA's previous fuzzy output.
+            return
+        raise ValueError(
+            f"Calibrated output column {output!r} conflicts with {role}. "
+            "Choose a different out_col."
+        )
 
     def _validate_variable_names(self, condition: str) -> None:
         if self.outcome_name not in self.data.columns:
