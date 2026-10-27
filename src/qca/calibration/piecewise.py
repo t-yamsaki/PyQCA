@@ -213,11 +213,12 @@ def calibrate_piecewise(
             )
     else:
         group_list = list(group_cols)
-        for keys, index in work.groupby(
+        # Group positions isolate rows even when index labels are duplicated.
+        for keys, positions in work.groupby(
             group_list, dropna=False, sort=True
-        ).groups.items():
+        ).indices.items():
             group_key = keys if isinstance(keys, tuple) else (keys,)
-            group_series = work.loc[index, value_col]
+            group_series = work[value_col].iloc[positions]
             p_low, p_mid, p_high, is_valid = _estimate_anchors(
                 group_series, quantiles, min_nonnull
             )
@@ -227,15 +228,15 @@ def calibrate_piecewise(
                     p_low=p_low,
                     p_mid=p_mid,
                     p_high=p_high,
-                    n_total=len(index),
+                    n_total=len(positions),
                     n_nonnull=int(group_series.notna().sum()),
                     is_valid=is_valid,
                 )
             )
             if is_valid:
-                fuzzy_values.loc[index] = piecewise_fuzzy_series(
+                fuzzy_values.iloc[positions] = piecewise_fuzzy_series(
                     group_series, p_low, p_mid, p_high, lower, upper
-                )
+                ).to_numpy()
 
     work[out_col] = fuzzy_values
     n_calibrated = int(fuzzy_values.notna().sum())

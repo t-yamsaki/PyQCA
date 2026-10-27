@@ -114,6 +114,8 @@ print(result.formula)
 
 ### fsQCA
 
+グループ別の `calibrate_piecewise` 校正は、グループ内・グループ間でインデックスラベルが重複していても、各グループの実際の行だけを使用します。返却結果は入力の行順とインデックスを維持し、アンカーの件数・`min_nonnull`・校正済み／スキップ件数はラベルの種類数ではなく実際の行数に基づきます。
+
 ```python
 import pandas as pd
 
