@@ -19,9 +19,9 @@ from qca.calibration._validators import (
     validate_anchor_ordering,
     validate_column_exists,
     validate_columns_exist,
-    validate_membership_bounds,
     validate_min_nonnull,
     validate_numeric_column,
+    validate_piecewise_membership_bounds,
     validate_quantile_triplet,
 )
 
@@ -86,7 +86,7 @@ def piecewise_fuzzy_scalar(
     upper: float = CALIBRATION_FULL_IN,
 ) -> float:
     """Convert one numeric value into fuzzy membership with linear segments."""
-    validate_membership_bounds(lower, upper)
+    validate_piecewise_membership_bounds(lower, upper)
     validate_anchor_ordering(p_low, p_mid, p_high)
     try:
         x_value = float(x)
@@ -113,7 +113,7 @@ def piecewise_fuzzy_series(
     upper: float = CALIBRATION_FULL_IN,
 ) -> pd.Series:
     """Convert a Series into fuzzy membership with linear segments."""
-    validate_membership_bounds(lower, upper)
+    validate_piecewise_membership_bounds(lower, upper)
     validate_anchor_ordering(p_low, p_mid, p_high)
     numeric = pd.to_numeric(series, errors="coerce").astype(float)
     arr = numeric.to_numpy(dtype=float)
@@ -201,7 +201,7 @@ def calibrate_piecewise(
     if group_cols:
         validate_columns_exist(df, list(group_cols))
     validate_quantile_triplet(quantiles)
-    validate_membership_bounds(lower, upper)
+    validate_piecewise_membership_bounds(lower, upper)
     validate_min_nonnull(min_nonnull)
 
     out_col = out_col or f"{value_col}_fuzzy"

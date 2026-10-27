@@ -73,6 +73,19 @@ def validate_membership_bounds(lower: float, upper: float) -> None:
         raise ValueError(f"lower must be less than upper. Got {lower} >= {upper}.")
 
 
+def validate_piecewise_membership_bounds(lower: float, upper: float) -> None:
+    """Require finite endpoints strictly straddling the fixed crossover."""
+    if not (np.isfinite(lower) and np.isfinite(upper)):
+        raise ValueError(
+            f"Piecewise membership bounds must be finite. Got {lower}, {upper}."
+        )
+    if not 0.0 <= lower < 0.5 < upper <= 1.0:
+        raise ValueError(
+            "Piecewise membership bounds must satisfy "
+            f"0 <= lower < 0.5 < upper <= 1. Got {lower}, {upper}."
+        )
+
+
 def validate_strict_membership_bounds(lower: float, upper: float) -> None:
     """Validate bounds suitable for logit transformation."""
     validate_membership_bounds(lower, upper)
