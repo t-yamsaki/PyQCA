@@ -148,6 +148,8 @@ result = model.fit(consistency_cutoff=0.8, coverage_cutoff=0.1)
 
 ### GSQCA
 
+多値条件のカテゴリ値には、内部ワイルドカード用の予約値である文字列 `*` は使用できません。観測データ、宣言したドメイン、`value_columns` のキー、カテゴリ和集合にこの値が含まれる場合は `ValueError` になります。解析前に別のカテゴリ値へ再符号化してください。`A*` のように文字列の一部に含まれる場合は使用できます。
+
 ```python
 import pandas as pd
 

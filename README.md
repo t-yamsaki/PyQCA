@@ -86,6 +86,8 @@ print(result.solutions)
 
 ### 2. mvQCA
 
+Multi-value category values must not be the exact string `*`, which is reserved for the internal don't-care wildcard. Observed data, declared domains, `value_columns` keys, and category unions containing this value raise `ValueError`. Recode it to a different category value before analysis; strings such as `A*` remain valid.
+
 Run multi-value QCA on categorical and ordinal conditions.
 
 ```python

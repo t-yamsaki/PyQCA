@@ -6,6 +6,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from qca._validation import validate_category_value
+
 ConditionKind = Literal["crisp", "fuzzy", "multi"]
 
 
@@ -39,6 +41,12 @@ class ConditionSpec:
                 object.__setattr__(self, "domain", tuple(value_columns.keys()))
         if self.domain is not None and not isinstance(self.domain, tuple):
             object.__setattr__(self, "domain", tuple(self.domain))
+
+        if self.kind == "multi":
+            for value in self.domain or ():
+                validate_category_value(value)
+            for value in self.value_columns or {}:
+                validate_category_value(value)
 
     @property
     def is_crisp(self) -> bool:
