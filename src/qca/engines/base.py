@@ -664,7 +664,30 @@ class QCAEngineBase:
             self.data[c] = vals
 
     def _materialize_multivalue_membership_columns(self) -> None:
-        """Copy declared gsQCA value-membership columns to canonical names."""
+        """Resolve all explicit aliases before writing any canonical columns."""
+        protected = {self.case_id, self.outcome}
+        protected.update(spec.name for spec in self.condition_specs)
+        # Unmapped calibrated values still resolve by name. Do not let an
+        # explicit alias overwrite or shadow a different value's input.
+        implicit_columns: set[str] = set()
+        for spec in self.condition_specs:
+            if not spec.is_multi:
+                continue
+            if (
+                spec.name in self.data.columns
+                and spec.calibrated is not True
+                and not spec.value_columns
+            ):
+                continue
+            for value in self._multivalue_domain(spec.name):
+                if value in (spec.value_columns or {}):
+                    continue
+                for column in self._multivalue_membership_column_candidates(
+                    spec.name, value
+                ):
+                    implicit_columns.add(column)
+
+        pending: dict[str, pd.Series] = {}
         for spec in self.condition_specs:
             if not spec.is_multi or not spec.value_columns:
                 continue
@@ -678,10 +701,25 @@ class QCAEngineBase:
                 target_column = self._multivalue_membership_column_name(
                     spec.name, value
                 )
-                self.data[target_column] = self._coerce_membership_series(
+                if target_column in protected:
+                    raise ValueError(
+                        f"value_columns target {target_column!r} conflicts with "
+                        "an outcome, case ID, or condition column."
+                    )
+                if target_column in pending or target_column in implicit_columns:
+                    raise ValueError(
+                        f"value_columns target {target_column!r} conflicts with "
+                        "another value-membership column."
+                    )
+                pending[target_column] = self._coerce_membership_series(
                     self.data[source_column],
                     f"{spec.name}={value}",
-                )
+                ).copy()
+
+        # Every source was read from the original data, including sources
+        # shared by conditions and cycles such as A=0 <-> A=1.
+        for target_column, values in pending.items():
+            self.data[target_column] = values
 
     def _coerce_multivalue_membership_columns(self) -> None:
         """Validate calibrated multivalent fuzzy membership columns."""
