@@ -215,6 +215,8 @@ Fitted results report `qca_type="GSQCA"`.
 
 ### 5. Pluggable Minimization Backends
 
+Directional expectations must map existing condition names to values in their domains (0/1 for crisp or fuzzy conditions; a declared or observed category for multi-value conditions). Unknown names and out-of-domain values raise `ValueError` before minimization, including when no positive rows exist. A partial mapping leaves omitted conditions unconstrained. `None` retains the warning and uses the complex solution as the intermediate solution; `{}` explicitly applies no directional restrictions to safe logical remainders. To leave a condition unconstrained, omit its key rather than assigning `None`.
+
 PyQCA separates the QCA engine from the minimization algorithm.
 
 This makes it possible to compare standard Boolean minimization with alternative optimization-based approaches.
