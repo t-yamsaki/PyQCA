@@ -261,3 +261,26 @@ def test_anchor_sensitivity_transforms_low_direction(
         "full_in": [-3.0],
     }
     assert len(result.summary_df) == 1
+
+
+@pytest.mark.parametrize("feature", ["resources", "burden"])
+def test_anchor_adapter_accepts_calibrated_direction_name(
+    fuzzy_df, fuzzy_predictor, feature
+):
+    validated = _validated(fuzzy_df)
+    calibration = calibrate_fuzzy_conditions(
+        validated, propose_fuzzy_anchors(validated, fuzzy_predictor)
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = run_anchor_sensitivity(
+            validated, calibration, feature,
+            anchor_grid={"full_out": [3], "crossover": [6], "full_in": [10]},
+            dir_exp={calibration.condition_map[feature]: 1},
+            incl_cut=0.5, outcome_threshold=0.5,
+        )
+    fit = result.result.results[0]
+    assert fit is not None
+    assert fit.settings["directional_expectations"] == {
+        calibration.condition_map[feature]: 1
+    }

@@ -409,6 +409,8 @@ This helps researchers inspect how sufficient configurations emerge, disappear, 
 
 ## Example: fsQCA Calibration Anchor Sweep
 
+For `AnchorSensitivity`, dictionary `dir_exp` keys may use either the original condition name or its calibrated name (default `<condition>_fuzzy`, or custom `out_col`). Original names are mapped before minimization; unchanged conditions keep their names. Matching duplicate aliases are accepted, but conflicting values produce an error for the run. Unknown names and invalid values remain errors. Scalar and sequence specifications retain their existing meaning and condition order. mlQCA adapters continue to accept calibrated condition names, including for low-direction calibration.
+
 For fuzzy-set QCA, threshold sensitivity often appears through calibration anchors: full non-membership, crossover, and full membership.
 
 PyQCA supports anchor sweep analysis through `AnchorSensitivity` and the convenience `ThresholdSweep.fuzzy_anchors()` adapter.
