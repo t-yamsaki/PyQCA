@@ -14,9 +14,9 @@ from qca._constants import (
     CALIBRATION_FULL_IN,
     CALIBRATION_FULL_OUT,
     CROSSOVER_POINT,
-    ZERO_EPSILON,
 )
 from qca.calibration._validators import (
+    validate_anchor_ordering,
     validate_column_exists,
     validate_columns_exist,
     validate_membership_bounds,
@@ -87,6 +87,7 @@ def piecewise_fuzzy_scalar(
 ) -> float:
     """Convert one numeric value into fuzzy membership with linear segments."""
     validate_membership_bounds(lower, upper)
+    validate_anchor_ordering(p_low, p_mid, p_high)
     try:
         x_value = float(x)
     except (TypeError, ValueError):
@@ -94,15 +95,12 @@ def piecewise_fuzzy_scalar(
     if np.isnan(x_value):
         return np.nan
 
-    w_low = max(p_mid - p_low, ZERO_EPSILON)
-    w_high = max(p_high - p_mid, ZERO_EPSILON)
-
     if x_value <= p_low:
         return lower
     if x_value <= p_mid:
-        return lower + (x_value - p_low) / w_low * (CROSSOVER_POINT - lower)
+        return _interpolate_segment(x_value, p_low, p_mid, lower, CROSSOVER_POINT)
     if x_value <= p_high:
-        return CROSSOVER_POINT + (x_value - p_mid) / w_high * (upper - CROSSOVER_POINT)
+        return _interpolate_segment(x_value, p_mid, p_high, CROSSOVER_POINT, upper)
     return upper
 
 
@@ -116,20 +114,41 @@ def piecewise_fuzzy_series(
 ) -> pd.Series:
     """Convert a Series into fuzzy membership with linear segments."""
     validate_membership_bounds(lower, upper)
+    validate_anchor_ordering(p_low, p_mid, p_high)
     numeric = pd.to_numeric(series, errors="coerce").astype(float)
     arr = numeric.to_numpy(dtype=float)
 
-    w_low = max(p_mid - p_low, ZERO_EPSILON)
-    w_high = max(p_high - p_mid, ZERO_EPSILON)
-    lower_segment = lower + (arr - p_low) / w_low * (CROSSOVER_POINT - lower)
-    upper_segment = CROSSOVER_POINT + (arr - p_mid) / w_high * (upper - CROSSOVER_POINT)
-
-    result = np.select(
-        [np.isnan(arr), arr <= p_low, arr <= p_mid, arr <= p_high],
-        [np.nan, lower, lower_segment, upper_segment],
-        default=upper,
+    result = np.full(arr.shape, np.nan, dtype=float)
+    result[arr <= p_low] = lower
+    result[arr >= p_high] = upper
+    low_mask = (arr > p_low) & (arr <= p_mid)
+    high_mask = (arr > p_mid) & (arr < p_high)
+    result[low_mask] = _interpolate_segment(
+        arr[low_mask], p_low, p_mid, lower, CROSSOVER_POINT
+    )
+    result[high_mask] = _interpolate_segment(
+        arr[high_mask], p_mid, p_high, CROSSOVER_POINT, upper
     )
     return pd.Series(result, index=series.index, dtype=float)
+
+
+def _interpolate_segment(
+    values: float | np.ndarray,
+    left: float,
+    right: float,
+    lower: float,
+    upper: float,
+) -> float | np.ndarray:
+    """Interpolate inside a valid segment without an absolute width floor."""
+    left, right = float(left), float(right)
+    width = right - left
+    if np.isfinite(width):
+        fraction = (values - left) / width
+    else:
+        # Opposite-sign finite anchors can have an unrepresentable difference.
+        # Halving first keeps both numerator and denominator representable.
+        fraction = (values / 2 - left / 2) / (right / 2 - left / 2)
+    return lower + fraction * (upper - lower)
 
 
 def _compute_quantile(series: pd.Series, q: float) -> float:

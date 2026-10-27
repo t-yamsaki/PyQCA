@@ -113,6 +113,8 @@ print(result.coverage)
 
 ### 3. fsQCA
 
+Piecewise calibration uses the actual positive anchor intervals, without imposing an absolute minimum width. Direct scalar/Series calls require finite, strictly increasing anchors and raise `ValueError` for degenerate anchors; quantile calibration retains its existing warning-and-skip policy for invalid estimated anchors. Unit conversion preserves memberships within floating-point precision while the anchors remain distinct and finite. Values that round to identical floating-point anchors cannot be distinguished; no artificial interval is substituted.
+
 Grouped `calibrate_piecewise` calibration uses each group's actual rows, even when index labels are duplicated within or across groups. Returned rows retain the input order and index; anchor counts, `min_nonnull`, and calibrated/skipped counts reflect rows rather than unique labels.
 
 Run fuzzy-set QCA with calibrated set-membership scores.
