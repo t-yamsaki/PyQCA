@@ -99,3 +99,100 @@ def test_calibrated_condition_does_not_fall_back_to_category():
     )
     with pytest.raises(KeyError, match="MultiValueLiteral"):
         model.evaluate_necessity(MultiValueLiteral("A", 1))
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_explicit_alias_cycle_reads_original_columns(reverse):
+    data = pd.DataFrame({"A=0": [0.1, 0.9], "A=1": [0.8, 0.2], "Y": [0.8, 0.2]})
+    original = data.copy(deep=True)
+    items = [(0, "A=1"), (1, "A=0")]
+    mapping = dict(reversed(items) if reverse else items)
+    model = GSQCA(data, outcome="Y", condition_specs=[
+        ConditionSpec("A", "multi", value_columns=mapping)
+    ])
+    assert model.conjunction_membership(
+        [MultiValueLiteral("A", 0)]
+    ).tolist() == [0.8, 0.2]
+    assert model.conjunction_membership(
+        [MultiValueLiteral("A", 1)]
+    ).tolist() == [0.1, 0.9]
+    assert model.outcome_series.tolist() == [0.8, 0.2]
+    assert model.evaluate_sufficiency([MultiValueLiteral("A", 0)]).consistency == 1
+    pd.testing.assert_frame_equal(data, original)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_cross_condition_sources_read_original_columns(reverse):
+    data = pd.DataFrame({
+        "A=0": [0.1, 0.9], "A=1": [0.8, 0.2],
+        "B=0": [0.3, 0.7], "B=1": [0.6, 0.4], "Y": [1, 0],
+    })
+    original = data.copy(deep=True)
+    specs = [
+        ConditionSpec("A", "multi", value_columns={0: "B=0", 1: "B=1"}),
+        ConditionSpec("B", "multi", value_columns={0: "A=0", 1: "A=1"}),
+    ]
+    model = GSQCA(data, outcome="Y", condition_specs=specs[::-1] if reverse else specs)
+    for condition, source in [("A", "B"), ("B", "A")]:
+        for value in [0, 1]:
+            assert model.conjunction_membership(
+                [MultiValueLiteral(condition, value)]
+            ).tolist() == original[f"{source}={value}"].tolist()
+    assert model.outcome_series.tolist() == [1, 0]
+    pd.testing.assert_frame_equal(data, original)
+
+
+@pytest.mark.parametrize("role", ["outcome", "case_id", "crisp", "multi"])
+def test_alias_targets_cannot_overwrite_analysis_columns(role):
+    data = pd.DataFrame({
+        "low": [0.9, 0.1], "high": [0.1, 0.9], "A=0": [0, 1], "Y": [1, 0],
+    })
+    original = data.copy(deep=True)
+    specs = [ConditionSpec("A", "multi", value_columns={0: "low", 1: "high"})]
+    kwargs = {"outcome": "Y"}
+    if role in {"outcome", "case_id"}:
+        kwargs[role] = "A=0"
+    else:
+        specs.append(ConditionSpec("A=0", role))
+    with pytest.raises(
+        ValueError, match="conflicts with.*outcome, case ID, or condition"
+    ):
+        GSQCA(data, condition_specs=specs, **kwargs)
+    pd.testing.assert_frame_equal(data, original)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("explicit", [False, True])
+def test_ambiguous_value_column_targets_are_rejected(reverse, explicit):
+    data = pd.DataFrame({
+        "low": [0.9, 0.1], "high": [0.1, 0.9],
+        "A=x=0": [0.2, 0.8], "A=x=1": [0.7, 0.3], "Y": [1, 0],
+    })
+    specs = [
+        ConditionSpec("A", "multi", value_columns={"x=0": "low", "x=1": "high"}),
+        ConditionSpec("A=x", "multi", domain=(0, 1),
+                      value_columns={0: "high", 1: "low"} if explicit else None),
+    ]
+    with pytest.raises(ValueError, match="another value-membership column"):
+        GSQCA(data, outcome="Y", condition_specs=specs[::-1] if reverse else specs)
+
+
+def test_shared_source_and_identity_aliases_are_allowed():
+    data = pd.DataFrame({"A=0": [0.1, 0.9], "high": [0.8, 0.2], "Y": [1, 0]})
+    model = GSQCA(data, outcome="Y", condition_specs=[
+        ConditionSpec("A", "multi", value_columns={0: "A=0", 1: "high"}),
+        ConditionSpec("B", "multi", value_columns={0: "A=0", 1: "high"}),
+    ])
+    for condition in ["A", "B"]:
+        assert model.conjunction_membership(
+            [MultiValueLiteral(condition, 0)]
+        ).tolist() == [0.1, 0.9]
+
+
+def test_alias_cannot_read_a_column_created_by_another_alias():
+    data = pd.DataFrame({"low": [0.9, 0.1], "high": [0.1, 0.9], "Y": [1, 0]})
+    with pytest.raises(ValueError, match="missing column"):
+        GSQCA(data, outcome="Y", condition_specs=[
+            ConditionSpec("A", "multi", value_columns={0: "low", 1: "high"}),
+            ConditionSpec("B", "multi", value_columns={0: "A=0", 1: "high"}),
+        ])
