@@ -461,7 +461,17 @@ class AnchorSensitivity:
         if dir_exp is None:
             return None
         if isinstance(dir_exp, Mapping):
-            return dict(dir_exp)
+            renamed = dict(zip(self.conditions, model_conditions, strict=True))
+            resolved: dict[str, Any] = {}
+            for name, value in dir_exp.items():
+                target = renamed.get(name, name)
+                if target in resolved and resolved[target] != value:
+                    raise ValueError(
+                        f"Conflicting dir_exp entries for condition {target!r}: "
+                        "original and calibrated names must specify the same value."
+                    )
+                resolved[target] = value
+            return resolved
         if isinstance(dir_exp, Sequence) and not isinstance(dir_exp, (str, bytes)):
             values = list(dir_exp)
             if len(values) == 1:
