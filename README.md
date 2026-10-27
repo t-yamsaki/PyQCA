@@ -113,6 +113,8 @@ print(result.coverage)
 
 ### 3. fsQCA
 
+Grouped `calibrate_piecewise` calibration uses each group's actual rows, even when index labels are duplicated within or across groups. Returned rows retain the input order and index; anchor counts, `min_nonnull`, and calibrated/skipped counts reflect rows rather than unique labels.
+
 Run fuzzy-set QCA with calibrated set-membership scores.
 
 ```python
