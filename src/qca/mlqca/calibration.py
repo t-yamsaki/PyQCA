@@ -138,7 +138,7 @@ def calibrate_crisp_conditions(
     """Apply crisp calibration proposals to validated mlQCA input."""
     if not isinstance(validated, ValidatedMLQCAInput):
         raise TypeError("validated must be a ValidatedMLQCAInput object.")
-    _validate_proposals(proposals, validated)
+    proposals = _validate_proposals(proposals, validated)
 
     work = validated.data.copy()
     outputs: list[str] = []
@@ -285,10 +285,19 @@ def _normalize_direction(value: str) -> CalibrationDirection:
     return direction  # type: ignore[return-value]
 
 
+def _normalize_proposal_directions(proposals: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy with the direction values used by calibration."""
+    normalized = proposals.copy()
+    normalized["direction"] = [
+        _normalize_direction(str(value)) for value in proposals["direction"]
+    ]
+    return normalized
+
+
 def _validate_proposals(
     proposals: pd.DataFrame,
     validated: ValidatedMLQCAInput,
-) -> None:
+) -> pd.DataFrame:
     if not isinstance(proposals, pd.DataFrame):
         raise TypeError("proposals must be a pandas DataFrame.")
     required = {"feature", "output", "threshold", "direction"}
@@ -310,8 +319,12 @@ def _validate_proposals(
             "Calibrated output columns already exist in data: "
             f"{collisions}"
         )
-    for direction in proposals["direction"]:
-        _normalize_direction(str(direction))
+    normalized = _normalize_proposal_directions(proposals)
+    if "operator" in normalized:
+        normalized["operator"] = normalized["direction"].map(
+            {"high": ">=", "low": "<="}
+        )
+    return normalized
 
 
 __all__ = [

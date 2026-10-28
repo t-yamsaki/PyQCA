@@ -167,3 +167,20 @@ increasing a feature increases or decreases the prediction. Custom predictor
 tables previously relying on that fallback must provide an identified
 direction or callers must specify one explicitly. ``shap_mean`` remains
 available as a descriptive output.
+
+
+Direction names in calibration proposals
+----------------------------------------
+
+The public ``calibrate_crisp_conditions`` and ``calibrate_fuzzy_conditions``
+APIs accept ``high``, ``positive``, ``ge``, and ``>=`` for high membership,
+and ``low``, ``negative``, ``le``, and ``<=`` for low membership. Names are
+case-insensitive and surrounding whitespace is ignored. Unknown directions
+are rejected before calibration.
+
+Validation and calibration use the same normalized proposal copy. Returned
+``proposals.direction`` contains ``high`` or ``low``; a supplied crisp
+``operator`` column is synchronized to ``>=`` or ``<=``. Other proposal
+metadata and indices are preserved, and the caller's proposal table is not
+modified. Crisp threshold equality remains included for both directions;
+fuzzy membership at the crossover remains 0.5 for both directions.

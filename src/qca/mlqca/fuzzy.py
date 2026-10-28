@@ -14,6 +14,7 @@ from qca.engines import FSQCA
 from qca.mlqca.backend import PredictorFitResult
 from qca.mlqca.calibration import (
     _normalize_direction,
+    _normalize_proposal_directions,
     _resolve_conditions,
     _resolve_direction,
 )
@@ -171,7 +172,7 @@ def calibrate_fuzzy_conditions(
     allow_missing: bool = False,
 ) -> FuzzyCalibrationSet:
     """Apply piecewise fuzzy calibration using mlQCA anchor proposals."""
-    _validate_fuzzy_proposals(validated, proposals)
+    proposals = _validate_fuzzy_proposals(validated, proposals)
     work = validated.data.copy()
     outputs: list[str] = []
     sources: list[str] = []
@@ -465,7 +466,7 @@ def _check_override_names(
 def _validate_fuzzy_proposals(
     validated: ValidatedMLQCAInput,
     proposals: pd.DataFrame,
-) -> None:
+) -> pd.DataFrame:
     if not isinstance(proposals, pd.DataFrame):
         raise TypeError("proposals must be a pandas DataFrame.")
     required = {
@@ -493,7 +494,7 @@ def _validate_fuzzy_proposals(
         )
     for row in proposals.itertuples(index=False):
         validate_anchor_ordering(row.full_out, row.crossover, row.full_in)
-        _normalize_direction(str(row.direction))
+    return _normalize_proposal_directions(proposals)
 
 
 def _proposal_row(
