@@ -40,7 +40,10 @@ def test_valid_partial_none_and_empty_theory_semantics():
         conditions=["A", "B"],
     )
     partial = model.fit(directional_expectations={"A": 1}).qm_solution
-    assert [imp.pattern for imp in partial.intermediate_solution] == [(1, "*")]
+    # The selected parsimonious solution is B; dropping B would belong to
+    # the alternative parsimonious solution A, not this selected pair.
+    assert [imp.pattern for imp in partial.parsimonious_solution] == [("*", 1)]
+    assert [imp.pattern for imp in partial.intermediate_solution] == [(1, 1)]
     with pytest.warns(UserWarning, match="directional_expectations was not provided"):
         unspecified = model.fit(directional_expectations=None).qm_solution
     assert unspecified.intermediate_solution == unspecified.complex_solution

@@ -28,8 +28,8 @@ from qca.minimizers.algorithms import (
 from qca.minimizers.implicant import Implicant, QMSolution
 from qca.minimizers.remainder import (
     classify_truth_table_rows,
+    filter_easy_remainders,
     filter_safe_remainders,
-    filter_theory_consistent_remainders,
     generate_all_minterms,
     is_theory_consistent,
     validate_directional_expectations,
@@ -253,13 +253,17 @@ class QCAMinimizer:
             solution.intermediate_solution = solution.complex_solution
             return solution
 
-        theory_remainders = filter_theory_consistent_remainders(
+        theory_remainders = filter_easy_remainders(
             remainder_indices=remainder_indices,
             negative_indices=negative_indices,
             contradiction_indices=contradiction_indices,
             all_patterns=self._all_patterns,
             condition_names=self.condition_names,
             directional_expectations=directional_expectations,
+            positive_indices=positive_indices,
+            parsimonious_patterns=[
+                imp.pattern for imp in solution.parsimonious_solution
+            ],
         )
         pi_intermediate = quine_mccluskey(
             minterms=positive_indices,

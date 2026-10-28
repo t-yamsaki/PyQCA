@@ -9,7 +9,7 @@ search.
 from __future__ import annotations
 
 import warnings
-from typing import Any, Literal
+from typing import Literal
 
 from qca._types import ConditionDomains, IsMultiValueMap, MintermList
 from qca.minimizers._cover import exact_set_cover
@@ -19,9 +19,6 @@ from qca.minimizers.algorithms import (
 )
 from qca.minimizers.engine import QCAMinimizer
 from qca.minimizers.implicant import Implicant, QMSolution
-from qca.minimizers.remainder import (
-    filter_theory_consistent_remainders,
-)
 
 SetCoverMethod = Literal["greedy", "exact"]
 
@@ -176,41 +173,6 @@ class SetCoverMinimizer(QCAMinimizer):
         )
         solution.prime_implicants_complex = prime_implicants
         solution.complex_solution = selected
-        return solution
-
-    def _build_intermediate_solution(
-        self,
-        solution: QMSolution,
-        positive_indices: MintermList,
-        remainder_indices: MintermList,
-        negative_indices: MintermList,
-        contradiction_indices: MintermList,
-        directional_expectations: dict[str, Any] | None,
-    ) -> QMSolution:
-        if directional_expectations is None:
-            return super()._build_intermediate_solution(
-                solution=solution,
-                positive_indices=positive_indices,
-                remainder_indices=remainder_indices,
-                negative_indices=negative_indices,
-                contradiction_indices=contradiction_indices,
-                directional_expectations=directional_expectations,
-            )
-
-        theory_remainders = filter_theory_consistent_remainders(
-            remainder_indices=remainder_indices,
-            negative_indices=negative_indices,
-            contradiction_indices=contradiction_indices,
-            all_patterns=self._all_patterns,
-            condition_names=self.condition_names,
-            directional_expectations=directional_expectations,
-        )
-        prime_implicants, selected = self._build_solution_from_dont_cares(
-            positive_indices=positive_indices,
-            dont_care_indices=theory_remainders,
-        )
-        solution.prime_implicants_intermediate = prime_implicants
-        solution.intermediate_solution = selected
         return solution
 
 
