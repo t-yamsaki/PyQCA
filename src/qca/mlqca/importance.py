@@ -182,11 +182,29 @@ def _direction_scores(
             continue
         x = values[valid]
         y = shap_values[valid]
-        if np.isclose(np.std(x), 0.0) or np.isclose(np.std(y), 0.0):
+        x_unit = _centered_unit_vector(x)
+        y_unit = _centered_unit_vector(y)
+        if x_unit is None or y_unit is None:
             scores.append(float("nan"))
             continue
-        scores.append(float(np.corrcoef(x, y)[0, 1]))
+        scores.append(float(np.clip(np.dot(x_unit, y_unit), -1.0, 1.0)))
     return scores
+
+
+def _centered_unit_vector(values: np.ndarray) -> np.ndarray | None:
+    """Normalize finite values without squaring their original scale."""
+    if np.all(values == values[0]):
+        return None
+    # Shift before scaling to preserve small representable differences around
+    # a large offset. Opposite extreme values may overflow this subtraction.
+    with np.errstate(over="ignore"):
+        shifted = values - values[0]
+    if not np.isfinite(shifted).all():
+        scaled = values / np.max(np.abs(values))
+        shifted = scaled - scaled[0]
+    scaled = shifted / np.max(np.abs(shifted))
+    centered = scaled - scaled.mean()
+    return centered / np.linalg.norm(centered)
 
 
 def _direction_label(score: float) -> str | None:

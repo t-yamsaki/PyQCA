@@ -42,6 +42,7 @@ def search_predictor() -> PredictorFitResult:
             "feature": ["A", "B", "C", "D"],
             "shap_mean_abs": [1.0, 0.8, 0.4, 0.2],
             "shap_mean": [0.7, -0.6, 0.2, -0.1],
+            "shap_direction": ["high", "low", "high", "low"],
             "shap_rank": [1, 2, 3, 4],
             "used": [True, True, True, True],
         }
@@ -296,8 +297,8 @@ def test_search_records_model_level_errors(
 ) -> None:
     search_predictor.feature_importance.loc[
         search_predictor.feature_importance["feature"] == "C",
-        "shap_mean",
-    ] = 0.0
+        "shap_direction",
+    ] = None
     validated = validate_mlqca_input(search_df, "Y", case_id="case")
     config = MLQCAConfig(
         mode="radical",
