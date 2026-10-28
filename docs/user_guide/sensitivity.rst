@@ -31,6 +31,16 @@ multi-condition grid, and dual outcome-condition sweeps.
    print(result.summary_df)
    print(result.stability)
 
+The name ``__tsqca_Y__`` is reserved for the prepared outcome. Rename a
+condition or case ID using that name before running threshold analysis.
+``prepare_threshold_data`` raises ``ValueError`` before binarization for such
+collisions; all four sweep modes record an invalid run with an explanatory
+``error`` and no fitted solution. This also applies to ``pre_calibrated``
+conditions and negated outcomes. A source outcome named ``__tsqca_Y__`` is
+allowed when it is not also a condition or case ID; unused input columns with
+that name do not affect analysis. Prepared data retain the existing outcome
+column name and return format.
+
 AnchorSensitivity
 -----------------
 
