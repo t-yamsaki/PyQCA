@@ -79,7 +79,17 @@ def prepare_threshold_data(
     pre_calibrated: Sequence[str] | None = None,
     negate_outcome: bool = False,
 ) -> tuple[pd.DataFrame, list[ConditionSpec]]:
-    """Prepare one threshold-specific QCA data frame."""
+    """Prepare one threshold-specific QCA data frame.
+
+    ``OUTCOME_COLUMN`` is reserved for the prepared outcome and cannot be
+    used as a condition or case ID. The source outcome may have that name.
+    """
+    if OUTCOME_COLUMN in conditions or case_id == OUTCOME_COLUMN:
+        raise ValueError(
+            f"Column name {OUTCOME_COLUMN!r} is reserved for the prepared "
+            "outcome; rename the condition or case ID column before "
+            "threshold analysis."
+        )
     pre_calibrated_set = set(pre_calibrated or [])
     validate_pre_calibrated(pre_calibrated, conditions, data)
 
