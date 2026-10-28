@@ -322,3 +322,160 @@ def test_anchor_adapter_recalibrates_existing_output_without_mutating_source(
             frame[calibration.case_id], before[calibration.case_id]
         )
     pd.testing.assert_frame_equal(calibration.data, stale)
+
+
+@pytest.mark.parametrize("feature", ["resources", "burden"])
+@pytest.mark.parametrize("value", [0, 1])
+@pytest.mark.parametrize("scope", ["swept", "other", "all"])
+def test_anchor_direction_source_aliases_match_calibrated(
+    fuzzy_df, fuzzy_predictor, feature, value, scope
+):
+    validated = _validated(fuzzy_df)
+    calibration = calibrate_fuzzy_conditions(
+        validated, propose_fuzzy_anchors(validated, fuzzy_predictor)
+    )
+    sources = [
+        name
+        for name in calibration.source_conditions
+        if scope == "all" or (name == feature) == (scope == "swept")
+    ]
+    directions = {name: value for name in sources}
+    original = directions.copy()
+    canonical = {calibration.condition_map[name]: value for name in sources}
+    kwargs = dict(
+        anchor_grid={"full_out": [3], "crossover": [6, 7], "full_in": [10]},
+        incl_cut=0.5,
+        outcome_threshold=0.5,
+    )
+    aliased = run_anchor_sensitivity(
+        validated, calibration, feature, dir_exp=directions, **kwargs
+    )
+    expected = run_anchor_sensitivity(
+        validated, calibration, feature, dir_exp=canonical, **kwargs
+    )
+    assert directions == original
+    pd.testing.assert_frame_equal(aliased.summary_df, expected.summary_df)
+    for actual, reference in zip(
+        aliased.result.results, expected.result.results, strict=True
+    ):
+        assert actual is not None and reference is not None
+        assert actual.settings["directional_expectations"] == canonical
+        assert actual.formulas == reference.formulas
+        pd.testing.assert_frame_equal(actual.truth_table, reference.truth_table)
+    frame = aliased.result.details[0]["calibrated_data"]
+    membership = frame[calibration.condition_map[feature]]
+    raw = frame[feature]
+    assert (
+        membership.loc[raw.idxmin()] < membership.loc[raw.idxmax()]
+        if feature == "resources"
+        else membership.loc[raw.idxmin()] > membership.loc[raw.idxmax()]
+    )
+
+
+@pytest.mark.parametrize("feature", ["resources", "burden"])
+@pytest.mark.parametrize("conflict", [False, True])
+def test_anchor_direction_duplicate_aliases(
+    fuzzy_df, fuzzy_predictor, feature, conflict
+):
+    validated = _validated(fuzzy_df)
+    calibration = calibrate_fuzzy_conditions(
+        validated, propose_fuzzy_anchors(validated, fuzzy_predictor)
+    )
+    directions = {feature: 1, calibration.condition_map[feature]: 0 if conflict else 1}
+    original = directions.copy()
+    kwargs = dict(
+        anchor_grid={"full_out": [3], "crossover": [6], "full_in": [10]},
+        dir_exp=directions,
+        incl_cut=0.5,
+        outcome_threshold=0.5,
+    )
+    if conflict:
+        with pytest.raises(ValueError, match="Conflicting dir_exp"):
+            run_anchor_sensitivity(validated, calibration, feature, **kwargs)
+    else:
+        result = run_anchor_sensitivity(validated, calibration, feature, **kwargs)
+        assert result.result.results[0].settings["directional_expectations"] == {
+            calibration.condition_map[feature]: 1
+        }
+    assert directions == original
+
+
+@pytest.mark.parametrize("feature", ["resources", "burden"])
+def test_anchor_direction_unknown_name_remains_invalid(
+    fuzzy_df, fuzzy_predictor, feature
+):
+    validated = _validated(fuzzy_df)
+    calibration = calibrate_fuzzy_conditions(
+        validated, propose_fuzzy_anchors(validated, fuzzy_predictor)
+    )
+    result = run_anchor_sensitivity(
+        validated,
+        calibration,
+        feature,
+        anchor_grid={"full_out": [3], "crossover": [6], "full_in": [10]},
+        dir_exp={"misspelled": 1},
+        incl_cut=0.5,
+        outcome_threshold=0.5,
+    )
+    assert result.result.results == [None]
+    assert not result.summary_df["valid"].any()
+    assert "unknown condition" in result.summary_df.iloc[0]["error"]
+
+
+@pytest.mark.parametrize("feature", ["resources", "burden"])
+@pytest.mark.parametrize("directions", [None, {}, 1, [0, 1]])
+def test_anchor_direction_nonmapping_compatibility(
+    fuzzy_df, fuzzy_predictor, feature, directions
+):
+    validated = _validated(fuzzy_df)
+    calibration = calibrate_fuzzy_conditions(
+        validated, propose_fuzzy_anchors(validated, fuzzy_predictor)
+    )
+    result = run_anchor_sensitivity(
+        validated,
+        calibration,
+        feature,
+        anchor_grid={"full_out": [3], "crossover": [6], "full_in": [10]},
+        dir_exp=directions,
+        incl_cut=0.5,
+        outcome_threshold=0.5,
+    )
+    fit = result.result.results[0]
+    assert fit is not None
+    outputs = [
+        calibration.condition_map[feature],
+        *[
+            out
+            for source, out in calibration.condition_map.items()
+            if source != feature
+        ],
+    ]
+    expected = (
+        directions
+        if directions is None or directions == {}
+        else dict(
+            zip(
+                outputs, [0, 1] if isinstance(directions, list) else [1, 1], strict=True
+            )
+        )
+    )
+    assert fit.settings["directional_expectations"] == expected
+
+
+def test_anchor_direction_internal_low_name_still_works(fuzzy_df, fuzzy_predictor):
+    validated = _validated(fuzzy_df)
+    calibration = calibrate_fuzzy_conditions(
+        validated, propose_fuzzy_anchors(validated, fuzzy_predictor)
+    )
+    result = run_anchor_sensitivity(
+        validated,
+        calibration,
+        "burden",
+        anchor_grid={"full_out": [3], "crossover": [6], "full_in": [10]},
+        dir_exp={"burden__mlqca_inverted": 0},
+        incl_cut=0.5,
+        outcome_threshold=0.5,
+    )
+    assert result.result.results[0].settings["directional_expectations"] == {
+        "burden__fuzzy": 0
+    }

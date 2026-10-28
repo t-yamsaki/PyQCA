@@ -68,6 +68,21 @@ GSQCA and fuzzy workflows
 Use :func:`qca.fit_gsqca_from_predictor` to assign crisp, fuzzy, and
 multi-value calibration strategies before fitting :class:`qca.GSQCA`.
 Use :func:`qca.run_anchor_sensitivity` to evaluate proposed fuzzy anchors.
+Its ``dir_exp`` mapping accepts original feature names or the corresponding
+``calibration.condition_map`` names, including partial specifications for
+conditions other than the swept feature. Both names refer to the same
+calibrated set: ``1`` expects membership and ``0`` expects non-membership.
+For a low-direction feature such as ``burden``, ``{"burden": 1}`` and
+``{"burden__fuzzy": 1}`` both expect membership in the low-burden set;
+``0`` expects its absence. Internal negation of raw values and reversal of
+the anchor grid do not invert these direction values.
+
+Equal duplicate aliases are combined; conflicting duplicates or ambiguous
+aliases raise ``ValueError`` before the sweep. Unknown names remain subject
+to the engine's validation and produce invalid runs with an error message.
+The input mapping is not modified. Scalar and sequence specifications retain
+the existing sweep behavior; sequence order is the swept condition followed
+by the other calibrated conditions in ``condition_map`` order.
 
 Cross-validation and bootstrap
 ------------------------------
