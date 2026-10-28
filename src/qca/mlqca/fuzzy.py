@@ -343,6 +343,13 @@ def run_anchor_sensitivity(
         conditions=[analysis_feature, *other_outputs],
         case_id=calibration.case_id,
     )
+    if isinstance(sweep_kwargs.get("dir_exp"), Mapping):
+        sweep_kwargs["dir_exp"] = _resolve_anchor_direction_names(
+            sweep_kwargs["dir_exp"],
+            calibration.condition_map,
+            analysis_feature=analysis_feature,
+            output=output,
+        )
     result = sweep.grid(
         analysis_feature,
         analysis_grid,
@@ -365,6 +372,35 @@ def run_anchor_sensitivity(
         transformed_for_low_direction=transformed,
         result=result,
     )
+
+
+def _resolve_anchor_direction_names(
+    directions: Mapping[str, Any],
+    condition_map: Mapping[str, str],
+    *,
+    analysis_feature: str,
+    output: str,
+) -> dict[str, Any]:
+    """Resolve aliases without changing calibrated-set direction values."""
+    aliases: dict[str, set[str]] = {}
+    for source, calibrated in condition_map.items():
+        aliases.setdefault(source, set()).add(calibrated)
+        aliases.setdefault(calibrated, set()).add(calibrated)
+    aliases.setdefault(analysis_feature, set()).add(output)
+    resolved: dict[str, Any] = {}
+    for name, value in directions.items():
+        targets = aliases.get(name, {name})
+        if len(targets) != 1:
+            raise ValueError(f"Ambiguous dir_exp condition name {name!r}.")
+        target = next(iter(targets))
+        if target in resolved and resolved[target] != value:
+            raise ValueError(
+                f"Conflicting dir_exp entries for condition {target!r}: "
+                "original and calibrated names must specify the same value."
+            )
+        resolved[target] = value
+    # Unknown names remain visible to the engine's existing validation.
+    return resolved
 
 
 def _resolve_fuzzy_anchors(
