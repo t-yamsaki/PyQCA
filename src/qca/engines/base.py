@@ -16,7 +16,6 @@ from qca._constants import (
     CROSSOVER_EPSILON,
     DONT_CARE,
     MEMBERSHIP_THRESHOLD,
-    ZERO_EPSILON,
 )
 from qca._validation import validate_category_value
 from qca.core.conditions import (
@@ -1487,19 +1486,20 @@ class QCAEngineBase:
         if x_sum == 0.0:
             return 0.0, 0.0
 
-        positive_overlap = float(np.minimum(x_arr, y_arr).sum())
+        positive_overlap = np.minimum(x_arr, y_arr)
         # Dușa, QCA with R, Eq. 6.4: intersection of X, Y, and ~Y.
-        simultaneous_overlap = float(
-            np.minimum(np.minimum(x_arr, y_arr), 1.0 - y_arr).sum()
-        )
-        consistency = positive_overlap / x_sum
+        simultaneous_overlap = np.minimum(positive_overlap, 1.0 - y_arr)
+        consistency = float(positive_overlap.sum()) / x_sum
 
-        pri_denominator = x_sum - simultaneous_overlap
-        if np.isclose(pri_denominator, 0.0, atol=ZERO_EPSILON):
-            # No distinguishable support: retain the finite zero convention.
+        # Subtract per case before summing: subtracting nearly equal totals
+        # can erase small, positive support. These residuals are nonnegative.
+        pri_denominator = float((x_arr - simultaneous_overlap).sum())
+        if pri_denominator == 0.0:
+            # Undefined PRI: retain the finite zero convention only at zero.
             pri = 0.0
         else:
-            pri = (positive_overlap - simultaneous_overlap) / pri_denominator
+            pri_numerator = float((positive_overlap - simultaneous_overlap).sum())
+            pri = pri_numerator / pri_denominator
             pri = min(1.0, max(0.0, pri))
 
         return float(consistency), float(pri)
