@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyqca"
-version = "0.2.0"
+version = "0.3.0"
 description = "Python-native toolkit for csQCA, mvQCA, fsQCA, gsQCA, and threshold-sweep analysis"
 readme = "README.md"
 license = "MIT"

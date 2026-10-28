@@ -7,6 +7,20 @@ Requirements
 PyQCA requires Python 3.11 or newer. NumPy and pandas are installed with the
 base package.
 
+Release installation
+--------------------
+
+This documentation prepares version 0.3.0. Once it is published to PyPI:
+
+.. code-block:: console
+
+   python -m pip install "pyqca==0.3.0"
+   python -m pip install "pyqca[viz,mlqca]==0.3.0"
+
+Before publication, use the source installation below. The distribution name
+is ``pyqca``; the Python import name is ``qca``. Python 3.11 and 3.12 are
+tested in CI. See :doc:`../release_notes` before upgrading an existing analysis.
+
 Development install
 -------------------
 

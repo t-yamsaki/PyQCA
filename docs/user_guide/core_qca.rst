@@ -213,3 +213,11 @@ ratios. The universality-based triviality diagnostic is separate from these
 ratios. See the necessity definitions in
 `Dușa, QCA with R, chapter 5
 <https://bookdown.org/dusadrian/QCAbook/analysisofnecessity.html>`_.
+
+Reserved multi-value category
+-----------------------------
+
+Multi-value category values must not be the exact string ``*``, which is reserved for
+the internal don't-care wildcard. Observed data, declared domains, ``value_columns``
+keys, and category unions containing this value raise ``ValueError``. Recode it to a
+different category value before analysis; strings such as ``A*`` remain valid.

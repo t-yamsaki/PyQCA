@@ -42,8 +42,9 @@ Pull requests targeting ``main`` run:
 
 Configure the ``main`` branch ruleset to require ``Tests (Python 3.11)``,
 ``Tests (Python 3.12)``, ``Lint and package``, and ``Sphinx`` before merging.
-The workflows only report quality status; they do not merge pull requests,
-create tags, or publish releases.
+These pull-request workflows only report quality status. Separate workflows
+publish to TestPyPI on manual dispatch from main and to PyPI when a GitHub
+Release is published. See :doc:`releasing` for configuration and release steps.
 
 Documentation conventions
 -------------------------

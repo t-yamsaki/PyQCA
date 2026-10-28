@@ -5,8 +5,7 @@ type: software
 authors:
   - family-names: "Yamasaki"
     given-names: "Taishi"
-version: 0.2.0
-date-released: 2026-07-01
+version: 0.3.0
 repository-code: "https://github.com/t-yamsaki/PyQCA"
 url: "https://github.com/t-yamsaki/PyQCA"
 license: MIT

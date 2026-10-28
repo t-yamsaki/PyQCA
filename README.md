@@ -6,7 +6,7 @@
 [![Docs build](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml/badge.svg)](https://github.com/t-yamsaki/PyQCA/actions/workflows/docs.yml)
 [![Documentation](https://readthedocs.org/projects/pyqca/badge/?version=latest)](https://pyqca.readthedocs.io/en/latest/)
 
-[日本語 README](README.ja.md)
+[日本語 README](https://github.com/t-yamsaki/PyQCA/blob/main/README.ja.md)
 
 It provides a unified framework for running **crisp-set QCA (csQCA)**,
 **multi-value QCA (mvQCA)**, **fuzzy-set QCA (fsQCA)**,
@@ -243,13 +243,13 @@ Available minimizers:
 
 | Minimizer          | Description                                          |
 | ------------------ | ---------------------------------------------------- |
-| `standard`         | Standard Boolean minimization backend                |
-| `qmc`              | Quine-McCluskey-style minimization                   |
-| `set_cover`        | Set-covering-based minimization                      |
+| `standard`         | Prime implicants with exact cover selection                |
+| `qmc`              | Same exact algorithm as standard |
+| `set_cover`        | Exact cover selection, as in the standard backend |
 | `greedy_set_cover` | Greedy approximation for large candidate rule spaces |
 | `exact_set_cover`  | Exact set-covering optimization backend              |
 
-Set-covering-based minimization is designed as an alternative backend, especially useful for large mvQCA-style candidate rule spaces.
+Exact cover search can take exponential time. Use `greedy_set_cover` explicitly when approximate cover selection is acceptable; shared prime generation can still be expensive.
 
 Backends can also be benchmarked against the same model and thresholds:
 
@@ -826,13 +826,13 @@ model fit or one calibration choice.
 
 ## Installation
 
-PyQCA is not yet published on PyPI.
+This branch prepares **0.3.0**. See the [release notes](https://pyqca.readthedocs.io/en/latest/release_notes.html) for changes that can affect existing analyses.
 
 For development installation:
 
 ```bash
 git clone https://github.com/t-yamsaki/PyQCA.git
-cd pyqca
+cd PyQCA
 pip install -e .
 ```
 
@@ -844,10 +844,10 @@ pip install -e ".[mlqca]"
 pip install -e ".[mlqca-explain]"
 ```
 
-Planned PyPI installation:
+After version 0.3.0 is published to PyPI:
 
 ```bash
-pip install pyqca
+python -m pip install "pyqca==0.3.0"
 ```
 
 ---
@@ -1053,7 +1053,7 @@ sweep_result.to_markdown("reports/threshold_sweep.md")
 ## Citation
 
 If you use PyQCA in academic work, please cite the software using
-[`CITATION.cff`](CITATION.cff).
+[`CITATION.cff`](https://github.com/t-yamsaki/PyQCA/blob/main/CITATION.cff).
 
 Suggested citation:
 
@@ -1100,9 +1100,9 @@ identifies the mlQCA methodology that informed the optional workflow.
 
 This project is released under the MIT License.
 
-See [`LICENSE`](LICENSE) for the project license,
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for attribution, and
-[`PROVENANCE_AUDIT.md`](PROVENANCE_AUDIT.md) for the source-origin review.
+See [`LICENSE`](https://github.com/t-yamsaki/PyQCA/blob/main/LICENSE) for the project license,
+[`THIRD_PARTY_NOTICES.md`](https://github.com/t-yamsaki/PyQCA/blob/main/THIRD_PARTY_NOTICES.md) for attribution, and
+[`PROVENANCE_AUDIT.md`](https://github.com/t-yamsaki/PyQCA/blob/main/PROVENANCE_AUDIT.md) for the source-origin review.
 
 ---
 
@@ -1111,7 +1111,7 @@ See [`LICENSE`](LICENSE) for the project license,
 Contributions are welcome.
 
 Contributions are accepted under the project's MIT License. See
-[`CONTRIBUTING.md`](CONTRIBUTING.md) for development, attribution, and
+[`CONTRIBUTING.md`](https://github.com/t-yamsaki/PyQCA/blob/main/CONTRIBUTING.md) for development, attribution, and
 provenance requirements.
 
 Potential contribution areas:
@@ -1160,22 +1160,30 @@ Future work is tracked through
 and release notes will be available through
 [GitHub Releases](https://github.com/t-yamsaki/PyQCA/releases).
 
-PRI uses the standard triple intersection of configuration, outcome, and negated outcome. This corrects row selection with `pri_cut`; see [PRI semantics](docs/user_guide/core_qca.rst).
+## Numerical semantics and compatibility
 
-The default `standard` and `qmc` backends now use exact cover selection: fewest terms, then lowest total logical complexity. One optimal cover is returned; equally optimal alternatives are not enumerated. Exact search can take exponential time and never silently falls back to an approximation. Use `greedy_set_cover` explicitly for approximate selection. See [minimization semantics](docs/user_guide/minimization.rst).
+See the [0.3.0 release notes](https://pyqca.readthedocs.io/en/latest/release_notes.html) for migration details.
 
-Sufficiency metrics now retain positive fuzzy memberships even when every score is at most 0.5. Empirical case-count filters remain separate; see [low-membership sufficiency](docs/user_guide/core_qca.rst).
+PRI uses the standard triple intersection of configuration, outcome, and negated outcome. This corrects row selection with `pri_cut`; see [PRI semantics](https://pyqca.readthedocs.io/en/latest/user_guide/core_qca.html).
 
-Logistic calibration now honors asymmetric three-anchor specifications using separate log-odds slopes around the crossover. Custom targets must straddle 0.5; asymmetric curves expose segment coefficients instead of a single slope/intercept. See [calibration semantics](docs/user_guide/calibration.rst).
+The default `standard` and `qmc` backends now use exact cover selection: fewest terms, then lowest total logical complexity. One optimal cover is returned; equally optimal alternatives are not enumerated. Exact search can take exponential time and never silently falls back to an approximation. Use `greedy_set_cover` explicitly for approximate selection. See [minimization semantics](https://pyqca.readthedocs.io/en/latest/user_guide/minimization.html).
 
-Cases with a set-condition membership exactly 0.5 are now excluded from truth-table row assignment and frequency counts, with a warning. All original cases still contribute to consistency and PRI. See [crossover semantics](docs/user_guide/core_qca.rst).
+Sufficiency metrics now retain positive fuzzy memberships even when every score is at most 0.5. Empirical case-count filters remain separate; see [low-membership sufficiency](https://pyqca.readthedocs.io/en/latest/user_guide/core_qca.html).
+
+Logistic calibration now honors asymmetric three-anchor specifications using separate log-odds slopes around the crossover. Custom targets must straddle 0.5; asymmetric curves expose segment coefficients instead of a single slope/intercept. See [calibration semantics](https://pyqca.readthedocs.io/en/latest/user_guide/calibration.html).
+
+Cases with a set-condition membership exactly 0.5 are now excluded from truth-table row assignment and frequency counts, with a warning. All original cases still contribute to consistency and PRI. See [crossover semantics](https://pyqca.readthedocs.io/en/latest/user_guide/core_qca.html).
 
 Multi-value engines resolve memberships using the same condition schema as truth-table assignment. A categorical condition uses its category column even when auxiliary columns named `A=0`, `A[0]`, or `A__0` exist. GSQCA uses value memberships when `value_columns` is declared, `calibrated=True` is specified with value columns, or only value columns are present. The standalone `MultiValueLiteral.membership(data)` API has no engine schema and retains its value-column-first behavior.
 
 Solution formulas and coverage-table labels preserve multi-value categories explicitly, including `A=0`, `A=1`, and `A=2`. Crisp/fuzzy set conditions retain `A` and `~A` notation. Low-level `Implicant.label` and `build_coverage_table` accept optional `is_multivalue` flags; callers without schema metadata retain legacy integer 0/1 set notation.
 
-Necessary-condition triviality now flags exact universal necessary conditions (all condition memberships equal 1), rather than high coverage. Low coverage alone does not establish triviality. Manually constructed necessary results without the optional `is_universal` evidence return `is_trivial=None`. See [triviality semantics and compatibility](docs/user_guide/core_qca.rst).
+Necessary-condition triviality now flags exact universal necessary conditions (all condition memberships equal 1), rather than high coverage. Low coverage alone does not establish triviality. Manually constructed necessary results without the optional `is_universal` evidence return `is_trivial=None`. See [triviality semantics and compatibility](https://pyqca.readthedocs.io/en/latest/user_guide/core_qca.html).
 
-Truth-table `include` now reflects `frequency_cutoff` together with consistency and PRI, both in `fit` results and standalone `build_truth_table`. Low-frequency rows remain visible and are still treated as logical remainders during minimization. See [frequency and inclusion](docs/user_guide/core_qca.rst).
+Truth-table `include` now reflects `frequency_cutoff` together with consistency and PRI, both in `fit` results and standalone `build_truth_table`. Low-frequency rows remain visible and are still treated as logical remainders during minimization. See [frequency and inclusion](https://pyqca.readthedocs.io/en/latest/user_guide/core_qca.html).
 
-Necessity consistency and coverage now retain positive membership sums even below `1e-12`; only truly zero denominators return zero. Case counts are unchanged. See [low-membership necessity](docs/user_guide/core_qca.rst).
+Necessity consistency and coverage now retain positive membership sums even below `1e-12`; only truly zero denominators return zero. Case counts are unchanged. See [low-membership necessity](https://pyqca.readthedocs.io/en/latest/user_guide/core_qca.html).
+
+Intermediate solutions use easy counterfactuals supported by observed positive configurations and bounded by the selected parsimonious solution. They preserve complex subset intermediate subset parsimonious logic. An empty direction mapping uses the selected parsimonious region; `None` retains the complex-solution fallback. See [intermediate solutions](https://pyqca.readthedocs.io/en/latest/user_guide/minimization.html).
+
+mlQCA resolves XGBoost feature names against model metadata. SHAP direction inference uses a scale-stable correlation; unidentified directions require an explicit override instead of using the sign of mean SHAP contributions. Crisp/fuzzy calibration applies normalized direction aliases to both memberships and returned proposals, without modifying the input table. Anchor sensitivity accepts original or calibrated names for the same calibrated set, including low-direction features. See [mlQCA semantics](https://pyqca.readthedocs.io/en/latest/user_guide/mlqca.html).

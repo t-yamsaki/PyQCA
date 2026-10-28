@@ -76,3 +76,22 @@ adapter. Calibration takes place on copies; the input data remain unchanged.
 
 Matplotlib is optional. Install ``pyqca[viz]`` before calling heatmap or
 trajectory plotting methods.
+
+Missing values and direction mappings
+-------------------------------------
+
+Threshold binarization (``qca_bin``) returns floating-point memberships: finite values
+at or above the threshold become 1, and lower values become 0. NaN and positive/negative
+infinity remain missing (NaN), including after outcome negation and in
+``pre_calibrated`` conditions. Thresholds must be finite. Preparation preserves these
+missing values; every threshold-sweep path rejects a run containing them, reporting
+affected columns and row counts in the summary's ``error`` field. Resolve or explicitly
+exclude those rows before analysis; the sweep does not silently impute or drop them.
+
+For ``AnchorSensitivity``, dictionary ``dir_exp`` keys may use either the original
+condition name or its calibrated name (default ``<condition>_fuzzy``, or custom
+``out_col``). Original names are mapped before minimization; unchanged conditions keep
+their names. Matching duplicate aliases are accepted, but conflicting values produce an
+error for the run. Unknown names and invalid values remain errors. Scalar and sequence
+specifications retain their existing meaning and condition order. mlQCA adapters
+continue to accept calibrated condition names, including for low-direction calibration.

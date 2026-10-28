@@ -52,3 +52,5 @@ Start here
    api/index
    methodology
    development
+   release_notes
+   releasing
