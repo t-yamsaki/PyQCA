@@ -246,3 +246,53 @@ def filter_theory_consistent_remainders(
             all_patterns[i], condition_names, directional_expectations
         )
     ]
+
+
+def filter_easy_remainders(
+    remainder_indices: MintermList,
+    negative_indices: MintermList,
+    contradiction_indices: MintermList,
+    all_patterns: list[tuple[Any, ...]],
+    condition_names: list[str],
+    directional_expectations: DirectionalExpectations,
+    positive_indices: MintermList,
+    parsimonious_patterns: list[tuple[Any, ...]],
+) -> MintermList:
+    """Select easy counterfactuals for the chosen conservative/parsimonious pair.
+
+    A changed coordinate must move toward its expected category, or be
+    unspecified. Unchanged coordinates need not equal the expectation.
+    Restrict candidates to the selected parsimonious solution, not the union
+    of all alternative prime implicants (Dusa, QCA with R, section 8.7).
+    """
+    safe = filter_safe_remainders(
+        remainder_indices, negative_indices, contradiction_indices
+    )
+    easy = []
+    for index in safe:
+        candidate = all_patterns[index]
+        in_parsimonious = any(
+            all(
+                value == DONT_CARE
+                or (
+                    actual in value if isinstance(value, frozenset) else actual == value
+                )
+                for actual, value in zip(candidate, term, strict=True)
+            )
+            for term in parsimonious_patterns
+        )
+        if not in_parsimonious:
+            continue
+        if any(
+            all(
+                actual == observed
+                or name not in directional_expectations
+                or actual == directional_expectations[name]
+                for name, actual, observed in zip(
+                    condition_names, candidate, all_patterns[positive], strict=True
+                )
+            )
+            for positive in positive_indices
+        ):
+            easy.append(index)
+    return easy

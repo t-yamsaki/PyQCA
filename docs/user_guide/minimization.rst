@@ -52,6 +52,43 @@ solutions. Intermediate solutions require directional expectations. Without
 them, PyQCA reports that the intermediate solution is equivalent to the
 complex solution.
 
+With a mapping, PyQCA compares each safe remainder with observed positive
+configurations. A coordinate may stay unchanged (even if contrary to the
+expectation), move to the specified expected value, or vary freely when no
+expectation is specified for that condition. At least one positive configuration
+must support all coordinate changes together. Merely matching one expected
+value is not sufficient.
+
+Candidate remainders are also restricted to the logical region of the selected
+parsimonious solution. The complex solution represents the observed positive
+configurations; minimizing those configurations with the admitted remainders
+therefore preserves ``complex subset intermediate subset parsimonious``.
+This follows the positive-configuration comparison for easy counterfactuals
+and the conservative/parsimonious pairing described in
+`Dușa, QCA with R, sections 8.6–8.7
+<https://bookdown.org/dusadrian/QCAbook/minimize.html>`_.
+Only the selected solution pair is used; intermediate solutions for alternative,
+equally optimal pairs are not enumerated. A different selected parsimonious
+solution can legitimately produce a different intermediate solution.
+
+For binary conditions, ``1`` permits changes toward presence and ``0`` toward
+absence. Omitted conditions are unconstrained. ``{}`` allows all safe remainders
+within the selected parsimonious region and yields its logic; ``None`` retains
+the warning and complex-solution fallback. Disabling parsimonious remainders
+also bounds the intermediate solution by the complex solution.
+For multi-value conditions, a specified category is the preferred target:
+changes to it are allowed, unchanged categories are allowed, and changes to
+other categories are not. This is a categorical rule, not a numeric ordering.
+Multiple preferred categories and conjunctural directional expectations are
+not supported by the current mapping API. Unknown names and out-of-domain
+values are still rejected before minimization.
+
+The LF regression reproduces the published truth-table classification and
+solution logic, not raw-data calibration or fuzzy fit scores. The legacy
+``is_theory_consistent`` / ``filter_theory_consistent_remainders`` helpers and
+``remainder_summary().theory_consistent`` report literal agreement with theory;
+they do not identify the easy counterfactuals used by intermediate minimization.
+
 Exactness and performance
 -------------------------
 

@@ -30,7 +30,10 @@ def test_original_and_calibrated_names_have_identical_intermediate_solutions(
         calibrated.results[0].minimization.intermediate_solution
     )
     if not other:
-        assert original.summary_df.iloc[0]["expression"] == f"({output})"
+        # The selected parsimonious solution is B, so intermediate A*B
+        # must not use the remainder belonging only to alternative solution A.
+        assert original.results[0].formulas["parsimonious"] == "(B)"
+        assert original.summary_df.iloc[0]["expression"] == f"({output} * B)"
         assert original.summary_df.iloc[0]["solution_type"] == "intermediate"
 
 
