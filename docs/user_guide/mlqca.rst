@@ -107,3 +107,20 @@ at least five of the tutorial's six highlighted conditions within the top ten,
 plus the published model-combination count. Exact top-ten ordering can vary
 across XGBoost and Python runtime versions. See ``tests/data/README.md`` and
 ``THIRD_PARTY_NOTICES.md`` for provenance.
+
+
+XGBoost feature names
+---------------------
+
+Threshold and importance extraction share the same feature-name rules.
+For a named Booster, pass ``feature_names`` exactly in model order; actual
+names such as ``f0`` and ``f1`` remain literal names. Reordering or renaming
+this list without changing the trained model raises ``ValueError``, also
+preventing mislabeling of positional SHAP contribution columns.
+
+For an unnamed Booster (``booster.feature_names is None``), pass the original
+training-column order: output keys ``f0``, ``f1``, etc. denote positions.
+Lightweight adapters without a ``feature_names`` attribute may use literal
+names or positional aliases only when the correspondence is unambiguous.
+Unknown or ambiguous keys raise ``ValueError`` instead of silently assigning
+or dropping evidence. Unused features still have zero native importance.

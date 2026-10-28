@@ -7,6 +7,8 @@ from typing import Any
 
 import pandas as pd
 
+from qca.mlqca._features import FeatureResolver, normalize_feature_names
+
 CUTOFF_COLUMNS = (
     "feature",
     "cutoff",
@@ -26,9 +28,8 @@ def xgboost_split_nodes(
     feature_names: Sequence[str],
 ) -> pd.DataFrame:
     """Return normalized non-leaf nodes from an XGBoost booster."""
-    names = tuple(str(name) for name in feature_names)
-    if not names:
-        raise ValueError("feature_names must contain at least one feature.")
+    names = normalize_feature_names(feature_names)
+    resolver = FeatureResolver(booster, names)
 
     tree_df = booster.trees_to_dataframe()
     if not isinstance(tree_df, pd.DataFrame):
@@ -45,17 +46,7 @@ def xgboost_split_nodes(
     if nodes.empty:
         return pd.DataFrame(columns=["feature", "cutoff", "gain", "cover"])
 
-    key_map = {name: name for name in names}
-    key_map.update({f"f{index}": name for index, name in enumerate(names)})
-    nodes["feature"] = nodes["Feature"].astype(str).map(
-        lambda value: key_map.get(value, value)
-    )
-    unknown = sorted(set(nodes["feature"]) - set(names))
-    if unknown:
-        raise ValueError(
-            "XGBoost tree contains features not present in feature_names: "
-            f"{unknown}"
-        )
+    nodes["feature"] = nodes["Feature"].map(resolver.resolve)
 
     nodes["cutoff"] = pd.to_numeric(nodes["Split"], errors="coerce")
     nodes["gain"] = pd.to_numeric(nodes["Gain"], errors="coerce")
