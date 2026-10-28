@@ -127,9 +127,16 @@ def test_real_xgboost_proposals_and_calibration_preserve_units(sign):
         )
         assert crisp.iloc[0].direction == fuzzy.iloc[0].direction == direction
         assert crisp.iloc[0].threshold / scale == pytest.approx(20, rel=1e-6)
+        # Serialized XGBoost cutoffs can round to either side of x=20.
+        # Compare model-derived memberships away from that boundary, then
+        # verify all cases with a unit-equivalent, between-case threshold.
+        explicit = propose_crisp_calibrations(
+            validated, predictor, threshold_overrides={"A": 19.5 * scale}
+        )
         outputs.append(
             (
-                calibrate_crisp_conditions(validated, crisp).data["A__crisp"],
+                calibrate_crisp_conditions(validated, crisp).data["A__crisp"][x != 20],
+                calibrate_crisp_conditions(validated, explicit).data["A__crisp"],
                 calibrate_fuzzy_conditions(validated, fuzzy).data["A__fuzzy"],
                 predictor.predictions.probability,
             )

@@ -142,7 +142,7 @@ or dropping evidence. Unused features still have zero native importance.
 
 
 SHAP direction inference and measurement units
----------------------------------------------
+-------------------------------------------------
 
 The inferred direction uses Pearson correlation between feature values and
 XGBoost contributions over pairs where both values are finite. Positive
