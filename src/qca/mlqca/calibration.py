@@ -258,16 +258,11 @@ def _resolve_direction(
     shap_direction = importance.loc[feature].get("shap_direction")
     if isinstance(shap_direction, str) and shap_direction in {"high", "low"}:
         return _normalize_direction(shap_direction), "shap"
-    shap_mean = pd.to_numeric(
-        pd.Series([importance.loc[feature].get("shap_mean")]),
-        errors="coerce",
-    ).iloc[0]
-    if pd.isna(shap_mean) or float(shap_mean) == 0.0:
-        raise ValueError(
-            f"Cannot infer crisp calibration direction for {feature!r}. "
-            "Provide direction_overrides or set MLConditionSpec.direction."
-        )
-    return ("high" if float(shap_mean) > 0.0 else "low"), "shap"
+    raise ValueError(
+        f"Cannot infer calibration direction for {feature!r}. "
+        "Provide direction_overrides or set MLConditionSpec.direction; "
+        "the sign of mean SHAP is not a feature-effect direction."
+    )
 
 
 def _normalize_direction(value: str) -> CalibrationDirection:

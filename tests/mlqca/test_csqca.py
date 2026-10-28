@@ -41,6 +41,7 @@ def predictor_result() -> PredictorFitResult:
             "feature": ["education", "income", "parent_vote"],
             "shap_mean_abs": [1.0, 0.8, 0.2],
             "shap_mean": [0.7, -0.5, 0.1],
+            "shap_direction": ["high", "low", None],
             "used": [True, True, False],
         }
     )
@@ -118,7 +119,7 @@ def test_proposal_overrides_take_precedence(raw_df, predictor_result) -> None:
     assert proposals.loc[0, "direction_source"] == "override"
 
 
-def test_direction_inference_requires_nonzero_shap(raw_df, predictor_result) -> None:
+def test_direction_inference_requires_direction(raw_df, predictor_result) -> None:
     validated = validate_mlqca_input(
         raw_df,
         "vote",

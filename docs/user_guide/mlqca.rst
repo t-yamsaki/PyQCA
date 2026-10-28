@@ -139,3 +139,31 @@ Lightweight adapters without a ``feature_names`` attribute may use literal
 names or positional aliases only when the correspondence is unambiguous.
 Unknown or ambiguous keys raise ``ValueError`` instead of silently assigning
 or dropping evidence. Unused features still have zero native importance.
+
+
+SHAP direction inference and measurement units
+-------------------------------------------------
+
+The inferred direction uses Pearson correlation between feature values and
+XGBoost contributions over pairs where both values are finite. Positive
+correlation indicates ``high`` and negative correlation indicates ``low``.
+The calculation shifts and rescales each vector before centering and
+normalizing, avoiding an absolute standard-deviation tolerance and overflow
+or underflow from squaring values in their original units. Positive unit
+changes preserve the direction, subject to floating-point representability
+and the fitted model producing equivalent contributions.
+
+A truly constant vector, fewer than two finite pairs, or unavailable raw
+feature values leave direction unidentified. Correlation within the existing
+dimensionless zero tolerance (absolute ``1e-8``) also has no direction.
+This is a heuristic association, not a test of monotonicity or causality.
+
+Both crisp and fuzzy proposals use the priority: ``direction_overrides``,
+then ``MLConditionSpec.direction``, then an identified ``shap_direction``.
+When inference is unavailable, proposals raise ``ValueError`` asking for an
+explicit direction. The sign of ``shap_mean`` is no longer a fallback:
+mean contribution relative to a model baseline does not identify whether
+increasing a feature increases or decreases the prediction. Custom predictor
+tables previously relying on that fallback must provide an identified
+direction or callers must specify one explicitly. ``shap_mean`` remains
+available as a descriptive output.
