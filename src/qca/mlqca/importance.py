@@ -8,6 +8,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from qca.mlqca._features import FeatureResolver, normalize_feature_names
+
 IMPORTANCE_COLUMNS = (
     "feature",
     "shap_mean_abs",
@@ -41,8 +43,8 @@ def extract_xgboost_importance(
     column per feature plus the bias term. If omitted, SHAP-derived columns are
     returned as missing values while native tree importance remains available.
     """
-    names = _normalize_feature_names(feature_names)
-    key_map = _feature_key_map(names)
+    names = normalize_feature_names(feature_names)
+    resolver = FeatureResolver(booster, names)
     rows = pd.DataFrame({"feature": names})
 
     shap_values = _summarize_contributions(
@@ -54,10 +56,12 @@ def extract_xgboost_importance(
 
     for importance_type in ("weight", "gain", "cover", "total_gain", "total_cover"):
         values = booster.get_score(importance_type=importance_type)
-        normalized = {
-            key_map.get(str(key), str(key)): float(value)
-            for key, value in values.items()
-        }
+        normalized = {}
+        for key, value in values.items():
+            name = resolver.resolve(key)
+            if name in normalized:
+                raise ValueError(f"Multiple XGBoost feature keys resolve to {name!r}.")
+            normalized[name] = float(value)
         rows[importance_type] = rows["feature"].map(normalized).fillna(0.0)
 
     split_counts = _split_count_table(split_nodes)
@@ -80,23 +84,6 @@ def extract_xgboost_importance(
         na_position="last",
     ).reset_index(drop=True)
     return rows.loc[:, list(IMPORTANCE_COLUMNS)]
-
-
-def _normalize_feature_names(feature_names: Sequence[str]) -> tuple[str, ...]:
-    names = tuple(str(name) for name in feature_names)
-    if not names:
-        raise ValueError("feature_names must contain at least one feature.")
-    if any(not name.strip() for name in names):
-        raise ValueError("feature_names cannot contain empty names.")
-    if len(set(names)) != len(names):
-        raise ValueError("feature_names cannot contain duplicates.")
-    return names
-
-
-def _feature_key_map(feature_names: tuple[str, ...]) -> dict[str, str]:
-    mapping = {name: name for name in feature_names}
-    mapping.update({f"f{index}": name for index, name in enumerate(feature_names)})
-    return mapping
 
 
 def _summarize_contributions(
