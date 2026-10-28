@@ -16,8 +16,12 @@ Crisp calibration
        value_col="raw_policy",
        threshold=5,
        out_col="policy",
-       direction="high",
+       direction="ge",
    ).df
+
+The generic crisp API accepts ``ge``, ``gt``, ``le`` and ``lt`` (and their
+comparison-symbol aliases). Equality is included by ``ge``/``le`` only.
+The ``high``/``low`` aliases belong to the separate mlQCA proposal API.
 
 Piecewise fuzzy calibration
 ---------------------------
@@ -30,11 +34,24 @@ Piecewise fuzzy calibration
        data,
        value_col="raw_capacity",
        out_col="capacity",
-       anchors=(2, 5, 8),
+       quantiles=(0.1, 0.5, 0.9),
    ).df
 
-The anchors represent full non-membership, crossover, and full membership.
-When anchors are omitted, the utility can estimate them from quantiles.
+This DataFrame API estimates anchors from the specified quantiles. For fixed
+raw anchors, use the Series API (it is not an anchors argument on
+calibrate_piecewise):
+
+.. code-block:: python
+
+   from qca.calibration import piecewise_fuzzy_series
+
+   calibrated = data.copy()
+   calibrated["capacity"] = piecewise_fuzzy_series(
+       data["raw_capacity"], p_low=2, p_mid=5, p_high=8,
+   )
+
+The three anchors map to lower membership, 0.5, and upper membership;
+the default bounds are 0.05 and 0.95.
 
 Logistic fuzzy calibration
 --------------------------
@@ -83,3 +100,25 @@ curve only when the slopes agree to numerical precision; otherwise both are
 single-curve metadata must handle ``None`` for asymmetric calibration.
 The exported legacy helper ``_estimate_logistic_params`` rejects curves
 requiring two slopes instead of returning misleading single-curve parameters.
+
+Piecewise boundary and grouping rules
+-------------------------------------
+
+Piecewise membership bounds must be finite and satisfy ``0 <= lower < 0.5 < upper <=
+1``. Bounds exactly equal to 0.5 are rejected to avoid a flat segment at the crossover;
+endpoints 0 and 1 are allowed. Scalar, Series, and quantile-based piecewise calibration
+apply the same validation and raise ``ValueError`` for invalid bounds. Logistic
+calibration retains its separate, stricter endpoint requirements.
+
+Piecewise calibration uses the actual positive anchor intervals, without imposing an
+absolute minimum width. Direct scalar/Series calls require finite, strictly increasing
+anchors and raise ``ValueError`` for degenerate anchors; quantile calibration retains
+its existing warning-and-skip policy for invalid estimated anchors. Unit conversion
+preserves memberships within floating-point precision while the anchors remain distinct
+and finite. Values that round to identical floating-point anchors cannot be
+distinguished; no artificial interval is substituted.
+
+Grouped ``calibrate_piecewise`` calibration uses each group's actual rows, even when
+index labels are duplicated within or across groups. Returned rows retain the input
+order and index; anchor counts, ``min_nonnull``, and calibrated/skipped counts reflect
+rows rather than unique labels.

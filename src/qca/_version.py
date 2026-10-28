@@ -1,3 +1,3 @@
 """Package version for PyQCA."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
