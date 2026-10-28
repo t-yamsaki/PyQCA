@@ -85,10 +85,17 @@ configuration membership and sums include all cases, not only cases assigned
 to its truth-table row. See `Dușa, QCA with R, equation 6.4
 <https://www.bookdown.org/dusadrian/QCAbook/analysisofsufficiency.html>`_.
 
-An empty configuration or a numerically zero PRI denominator returns ``0.0``
+An empty configuration or an exactly zero PRI denominator returns ``0.0``
 as a finite convention, rather than evidence of sufficient support. A positive
 ``pri_cut`` excludes such rows; the default ``pri_cut=0.0`` does not exclude
 rows on PRI alone. The ordinary consistency threshold still applies.
+
+Positive denominators are evaluated without an absolute zero tolerance or an
+added epsilon. The numerator and denominator are computed by summing per-case
+differences, avoiding cancellation between nearly equal totals. For example,
+``X=[0.25, 1e-20]`` and ``Y=[0.5, 1.0]`` yield PRI 1.0: the first case
+contributes zero to both differences, and the second contributes ``1e-20``
+to each. Values remain subject to floating-point representability.
 
 Low-membership sufficiency
 --------------------------
@@ -202,7 +209,7 @@ Each truly zero denominator independently returns 0.0 under the existing
 finite convention, not evidence of necessity. The same calculation is used
 by single-literal evaluation, necessary-condition search and its result tables.
 Case counts and empirical support are separate from these set-theoretic
-ratios. This change does not modify PRI denominator handling or the
-universality-based triviality diagnostic. See the necessity definitions in
+ratios. The universality-based triviality diagnostic is separate from these
+ratios. See the necessity definitions in
 `Dușa, QCA with R, chapter 5
 <https://bookdown.org/dusadrian/QCAbook/analysisofnecessity.html>`_.
